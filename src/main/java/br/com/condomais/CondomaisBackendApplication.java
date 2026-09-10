@@ -1,4 +1,4 @@
-package br.com.condomais.condomais_backend;
+package br.com.condomais;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
