@@ -37,4 +37,17 @@ public class TokenService {
     public Instant gerarDataExpiracao() {
         return LocalDateTime.now().plusHours(8).toInstant(ZoneOffset.of("-03:00"));
     }
+
+    public String getSubject(String token){
+        try {
+            Algorithm algoritmo = Algorithm.HMAC256(secret);
+            return JWT.require(algoritmo)
+                    .withIssuer("condoplus-api")
+                    .build()
+                    .verify(token)
+                    .getSubject();
+        } catch (JWTCreationException exception) {
+            throw new RuntimeException("Token JWT inválido ou expirado!");
+        }
+    }
 }
