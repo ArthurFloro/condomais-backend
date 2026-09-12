@@ -1,5 +1,6 @@
 package br.com.condomais.portaria.controller;
 
+import br.com.condomais.core.security.UsuarioAutenticado;
 import br.com.condomais.portaria.dto.RegistroEntradaDTO;
 import br.com.condomais.portaria.model.Visita;
 import br.com.condomais.portaria.service.VisitaService;
@@ -20,15 +21,16 @@ public class VisitaController {
     @Autowired
     private VisitaService visitaService;
 
-    // Auxiliar para extrair informações do token JWT validado no SecurityFilter
     private UUID getUsuarioIdLogado() {
-        // Implementação simplificada: em um cenário real, você extrairia a claim 'id' do JWT.
-        // Aqui assumimos que o ID foi colocado nos detalhes da Autenticação ou extraído via repositório.
-        return UUID.randomUUID(); // TODO: Substituir pela extração real do SecurityContext
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        var usuarioAutenticado = (UsuarioAutenticado) authentication.getPrincipal();
+        return usuarioAutenticado.getId();
     }
 
     private UUID getCondominioIdLogado() {
-        return UUID.randomUUID(); // TODO: Substituir pela extração real da claim 'condominio_id' do SecurityContext
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        var usuarioAutenticado = (UsuarioAutenticado) authentication.getPrincipal();
+        return usuarioAutenticado.getCondominioId();
     }
 
     @PostMapping("/entrada")

@@ -31,14 +31,8 @@ public class SecurityFilter extends OncePerRequestFilter {
             var subject = tokenService.getSubject(tokenJWT);
             var usuario = usuarioRepository.findByCpf(subject).orElseThrow();
 
-            // Adapta para o formato do Spring Security garantindo os perfis e permissões do usuário
-            var userDetails = org.springframework.security.core.userdetails.User.builder()
-                    .username(usuario.getCpf())
-                    .password(usuario.getSenha())
-                    .roles(usuario.getPerfil())
-                    .build();
-
-            var authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+            var usuarioAutenticado = new UsuarioAutenticado(usuario);
+            var authentication = new UsernamePasswordAuthenticationToken(usuarioAutenticado, null, usuarioAutenticado.getAuthorities());
 
             // Força a autenticação neste request
             SecurityContextHolder.getContext().setAuthentication(authentication);
