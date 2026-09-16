@@ -1,7 +1,9 @@
 package br.com.condomais.interativo.controller;
 
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.interativo.dto.RegistroAvisoDTO;
 import br.com.condomais.interativo.model.Aviso;
+import br.com.condomais.interativo.service.AvisoService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -11,7 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/interativo/avisos")
 public class AvisoController {
 
-    // ... injeções do Service ...
+    AvisoService avisoService = new AvisoService();
 
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'PORTARIA')") // RN-AVI-001 restringe o Morador
