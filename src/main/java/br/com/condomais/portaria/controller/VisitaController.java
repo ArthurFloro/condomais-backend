@@ -4,6 +4,8 @@ import br.com.condomais.core.security.UsuarioAutenticado;
 import br.com.condomais.portaria.dto.RegistroEntradaDTO;
 import br.com.condomais.portaria.model.Visita;
 import br.com.condomais.portaria.service.VisitaService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -16,6 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/portaria/visitas")
+@Tag(name = "Módulo 3 - Portaria e Operações", description = "Controle operacional de visitantes, registro de entradas, saídas e rastreabilidade por funcionário.")
 public class VisitaController {
 
     @Autowired
@@ -34,6 +37,10 @@ public class VisitaController {
     }
 
     @PostMapping("/entrada")
+    @Operation(
+            summary = "Registrar entrada de visitante",
+            description = "Permite à portaria registrar a entrada de um visitante (cadastrando-o caso não exista previamente) vinculando ao apartamento e registrando o porteiro responsável (RF-POR-006, RF-POR-014)[cite: 4]."
+    )
     public ResponseEntity<Visita> registrarEntrada(@RequestBody RegistroEntradaDTO dados) {
         var porteiroId = getUsuarioIdLogado();
         var condominioId = getCondominioIdLogado();
@@ -43,6 +50,10 @@ public class VisitaController {
     }
 
     @PutMapping("/{id}/saida")
+    @Operation(
+            summary = "Registrar saída de visitante",
+            description = "Atualiza o status da visita para 'SAIU', registrando a data/hora e o porteiro responsável pela saída (RF-POR-007, RF-POR-014)[cite: 4]."
+    )
     public ResponseEntity<Visita> registrarSaida(@PathVariable UUID id) {
         var porteiroId = getUsuarioIdLogado();
         var condominioId = getCondominioIdLogado();
