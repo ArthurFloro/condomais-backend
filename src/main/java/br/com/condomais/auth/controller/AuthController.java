@@ -3,6 +3,8 @@ package br.com.condomais.auth.controller;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.core.security.TokenService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -18,6 +20,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping("/auth")
+@Tag(name = "Módulo 1 - Usuários, Autenticação e Permissões", description = "Gerenciamento de identificação, cadastro, autenticação (CPF e senha) e autorização de acesso.")
 public class AuthController {
 
     @Autowired
@@ -39,6 +42,10 @@ public class AuthController {
     public record PrimeiroAcessoDTO(String cpf, String novaSenha) {}
 
     @PostMapping("/primeiro-acesso")
+    @Operation(
+            summary = "Primeiro acesso e criação de senha",
+            description = "Permite que um usuário com CPF previamente cadastrado administrativamente crie sua própria senha. O sistema não possui cadastro público livre (RN-AUT-001)."
+    )
     public ResponseEntity<String> primeiroAcesso(@RequestBody PrimeiroAcessoDTO dados) {
         // Consulta se o CPF já está pré-cadastrado pela Administração
         Optional<Usuario> usuarioOpt = usuarioRepository.findByCpf(dados.cpf());
@@ -57,6 +64,10 @@ public class AuthController {
     }
 
     @PostMapping("/login")
+    @Operation(
+            summary = "Autenticação de usuário",
+            description = "Realiza a validação de acesso utilizando CPF e senha (RF-AUT-001). Identifica o perfil do usuário e retorna o token de acesso (RF-AUT-003)."
+    )
     public ResponseEntity<TokenResponseDTO> login(@RequestBody LoginDTO dados) {
         var usernamePassword = new UsernamePasswordAuthenticationToken(dados.cpf(), dados.senha);
 
