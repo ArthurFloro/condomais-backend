@@ -105,4 +105,35 @@ public class CondominioController {
         condominioService.excluirTorre(id);
         return ResponseEntity.noContent().build();
     }
+
+    // ---------------------------------------------------------------------
+    // Apartamento
+    // ---------------------------------------------------------------------
+
+    @GetMapping("/apartamentos")
+    @Operation(summary = "Listar apartamentos", description = "Lista todos os apartamentos, com filtros opcionais por condominioId e/ou torreId.")
+    public ResponseEntity<List<ApartamentoResponseDTO>> listarApartamentos(
+            @RequestParam(required = false) UUID condominioId,
+            @RequestParam(required = false) UUID torreId) {
+        return ResponseEntity.ok(condominioService.listarApartamentos(condominioId, torreId));
+    }
+
+    @GetMapping("/apartamentos/{id}")
+    @Operation(summary = "Buscar apartamento por ID", description = "Retorna os dados de um apartamento específico.")
+    public ResponseEntity<ApartamentoResponseDTO> buscarApartamento(@PathVariable UUID id) {
+        return ResponseEntity.ok(condominioService.buscarApartamento(id));
+    }
+
+    @PutMapping("/apartamentos/{id}")
+    @Operation(summary = "Editar apartamento", description = "Atualiza número, status e torre do apartamento. A torre deve pertencer ao mesmo condomínio; torreId nulo remove o vínculo (condominioId do corpo é ignorado).")
+    public ResponseEntity<ApartamentoResponseDTO> atualizarApartamento(@PathVariable UUID id, @RequestBody ApartamentoDTO dados) {
+        return ResponseEntity.ok(condominioService.atualizarApartamento(id, dados));
+    }
+
+    @DeleteMapping("/apartamentos/{id}")
+    @Operation(summary = "Excluir apartamento", description = "Remove o apartamento. Bloqueado se houver moradores, visitas, encomendas ou chamados vinculados.")
+    public ResponseEntity<Void> excluirApartamento(@PathVariable UUID id) {
+        condominioService.excluirApartamento(id);
+        return ResponseEntity.noContent().build();
+    }
 }

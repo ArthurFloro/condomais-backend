@@ -158,12 +158,69 @@ public class CondominioService {
     }
 
     // ---------------------------------------------------------------------
+    // Apartamento
+    // ---------------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public List<ApartamentoResponseDTO> listarApartamentos(UUID condominioId, UUID torreId) {
+        List<Apartamento> apartamentos;
+        if (condominioId != null && torreId != null) {
+            apartamentos = apartamentoRepository.findByTorreIdAndCondominioId(torreId, condominioId);
+        } else if (torreId != null) {
+            apartamentos = apartamentoRepository.findByTorreId(torreId);
+        } else if (condominioId != null) {
+            apartamentos = apartamentoRepository.findByCondominioId(condominioId);
+        } else {
+            apartamentos = apartamentoRepository.findAll();
+        }
+        return apartamentos.stream().map(ApartamentoResponseDTO::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public ApartamentoResponseDTO buscarApartamento(UUID id) {
+        return ApartamentoResponseDTO.from(buscarApartamentoEntidade(id));
+    }
+
+    @Transactional
+    public ApartamentoResponseDTO atualizarApartamento(UUID id, ApartamentoDTO dados) {
+        var apartamento = buscarApartamentoEntidade(id);
+
+        apartamento.setNumero(dados.numero());
+        apartamento.setStatus(dados.status().toUpperCase());
+
+        // O apartamento não muda de condomínio (condominioId do body é ignorado),
+        // mas pode trocar de torre desde que ela pertença ao mesmo condomínio.
+        if (dados.torreId() != null) {
+            var torre = torreRepository.findById(dados.torreId())
+                    .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+            if (!torre.getCondominio().getId().equals(apartamento.getCondominio().getId())) {
+                throw new IllegalArgumentException("A torre informada não pertence ao condomínio do apartamento.");
+            }
+            apartamento.setTorre(torre);
+        } else {
+            apartamento.setTorre(null);
+        }
+
+        return ApartamentoResponseDTO.from(apartamentoRepository.save(apartamento));
+    }
+
+    @Transactional
+    public void excluirApartamento(UUID id) {
+        excluir(apartamentoRepository, buscarApartamentoEntidade(id));
+    }
+
+    // ---------------------------------------------------------------------
     // Auxiliares
     // ---------------------------------------------------------------------
 
     private Torre buscarTorreEntidade(UUID id) {
         return torreRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+    }
+
+    private Apartamento buscarApartamentoEntidade(UUID id) {
+        return apartamentoRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Apartamento não encontrado."));
     }
 
     /**
