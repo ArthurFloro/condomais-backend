@@ -122,8 +122,49 @@ public class CondominioService {
     }
 
     // ---------------------------------------------------------------------
+    // Torre
+    // ---------------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public List<TorreResponseDTO> listarTorres(UUID condominioId) {
+        var torres = condominioId != null
+                ? torreRepository.findByCondominioId(condominioId)
+                : torreRepository.findAll();
+        return torres.stream().map(TorreResponseDTO::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public TorreResponseDTO buscarTorre(UUID id) {
+        return TorreResponseDTO.from(buscarTorreEntidade(id));
+    }
+
+    @Transactional
+    public TorreResponseDTO atualizarTorre(UUID id, TorreDTO dados) {
+        var torre = buscarTorreEntidade(id);
+        // A torre não muda de condomínio: o condominioId do body é ignorado.
+        torre.setNome(dados.nome());
+        return TorreResponseDTO.from(torreRepository.save(torre));
+    }
+
+    @Transactional
+    public void excluirTorre(UUID id) {
+        var torre = buscarTorreEntidade(id);
+
+        if (apartamentoRepository.existsByTorreId(id)) {
+            throw new IllegalArgumentException("Não é possível excluir a torre: existem apartamentos vinculados.");
+        }
+
+        excluir(torreRepository, torre);
+    }
+
+    // ---------------------------------------------------------------------
     // Auxiliares
     // ---------------------------------------------------------------------
+
+    private Torre buscarTorreEntidade(UUID id) {
+        return torreRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+    }
 
     /**
      * Exclui e força o flush para que violações de FK (registros de outros módulos

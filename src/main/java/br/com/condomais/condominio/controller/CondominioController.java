@@ -76,4 +76,33 @@ public class CondominioController {
         condominioService.excluirCondominio(id);
         return ResponseEntity.noContent().build();
     }
+
+    // ---------------------------------------------------------------------
+    // Torre
+    // ---------------------------------------------------------------------
+
+    @GetMapping("/torres")
+    @Operation(summary = "Listar torres", description = "Lista todas as torres ou, informando condominioId, apenas as torres do condomínio.")
+    public ResponseEntity<List<TorreResponseDTO>> listarTorres(@RequestParam(required = false) UUID condominioId) {
+        return ResponseEntity.ok(condominioService.listarTorres(condominioId));
+    }
+
+    @GetMapping("/torres/{id}")
+    @Operation(summary = "Buscar torre por ID", description = "Retorna os dados de uma torre específica.")
+    public ResponseEntity<TorreResponseDTO> buscarTorre(@PathVariable UUID id) {
+        return ResponseEntity.ok(condominioService.buscarTorre(id));
+    }
+
+    @PutMapping("/torres/{id}")
+    @Operation(summary = "Editar torre", description = "Atualiza o nome da torre. O condomínio da torre não pode ser alterado (condominioId do corpo é ignorado).")
+    public ResponseEntity<TorreResponseDTO> atualizarTorre(@PathVariable UUID id, @RequestBody TorreDTO dados) {
+        return ResponseEntity.ok(condominioService.atualizarTorre(id, dados));
+    }
+
+    @DeleteMapping("/torres/{id}")
+    @Operation(summary = "Excluir torre", description = "Remove a torre. Bloqueado se houver apartamentos ou outros registros vinculados.")
+    public ResponseEntity<Void> excluirTorre(@PathVariable UUID id) {
+        condominioService.excluirTorre(id);
+        return ResponseEntity.noContent().build();
+    }
 }
