@@ -136,4 +136,40 @@ public class CondominioController {
         condominioService.excluirApartamento(id);
         return ResponseEntity.noContent().build();
     }
+
+    // ---------------------------------------------------------------------
+    // Área comum
+    // ---------------------------------------------------------------------
+
+    @GetMapping("/areas-comuns")
+    @Operation(summary = "Listar áreas comuns", description = "Lista as áreas comuns, com filtro opcional por condominioId. Use apenasAtivas=true para omitir as desativadas.")
+    public ResponseEntity<List<AreaComumResponseDTO>> listarAreasComuns(
+            @RequestParam(required = false) UUID condominioId,
+            @RequestParam(defaultValue = "false") boolean apenasAtivas) {
+        return ResponseEntity.ok(condominioService.listarAreasComuns(condominioId, apenasAtivas));
+    }
+
+    @GetMapping("/areas-comuns/{id}")
+    @Operation(summary = "Buscar área comum por ID", description = "Retorna os dados de uma área comum específica.")
+    public ResponseEntity<AreaComumResponseDTO> buscarAreaComum(@PathVariable UUID id) {
+        return ResponseEntity.ok(condominioService.buscarAreaComum(id));
+    }
+
+    @PutMapping("/areas-comuns/{id}")
+    @Operation(summary = "Editar área comum", description = "Atualiza nome, descrição, regras e configurações de reserva/aprovação (condominioId do corpo é ignorado).")
+    public ResponseEntity<AreaComumResponseDTO> atualizarAreaComum(@PathVariable UUID id, @RequestBody AreaComumDTO dados) {
+        return ResponseEntity.ok(condominioService.atualizarAreaComum(id, dados));
+    }
+
+    @PutMapping("/areas-comuns/{id}/desativar")
+    @Operation(summary = "Desativar área comum", description = "Soft-delete: mantém o histórico de reservas e marca a área como inativa.")
+    public ResponseEntity<AreaComumResponseDTO> desativarAreaComum(@PathVariable UUID id) {
+        return ResponseEntity.ok(condominioService.alterarStatusAreaComum(id, false));
+    }
+
+    @PutMapping("/areas-comuns/{id}/ativar")
+    @Operation(summary = "Reativar área comum", description = "Marca novamente como ativa uma área comum desativada.")
+    public ResponseEntity<AreaComumResponseDTO> ativarAreaComum(@PathVariable UUID id) {
+        return ResponseEntity.ok(condominioService.alterarStatusAreaComum(id, true));
+    }
 }

@@ -210,8 +210,56 @@ public class CondominioService {
     }
 
     // ---------------------------------------------------------------------
+    // Área comum
+    // ---------------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public List<AreaComumResponseDTO> listarAreasComuns(UUID condominioId, boolean apenasAtivas) {
+        List<AreaComum> areas;
+        if (condominioId != null) {
+            areas = apenasAtivas
+                    ? areaComumRepository.findByCondominioIdAndAtivoTrue(condominioId)
+                    : areaComumRepository.findByCondominioId(condominioId);
+        } else {
+            areas = apenasAtivas ? areaComumRepository.findByAtivoTrue() : areaComumRepository.findAll();
+        }
+        return areas.stream().map(AreaComumResponseDTO::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public AreaComumResponseDTO buscarAreaComum(UUID id) {
+        return AreaComumResponseDTO.from(buscarAreaComumEntidade(id));
+    }
+
+    @Transactional
+    public AreaComumResponseDTO atualizarAreaComum(UUID id, AreaComumDTO dados) {
+        var area = buscarAreaComumEntidade(id);
+
+        // A área não muda de condomínio: o condominioId do body é ignorado.
+        area.setNome(dados.nome());
+        area.setDescricao(dados.descricao());
+        area.setRegras(dados.regras());
+        area.setReservavel(dados.reservavel());
+        area.setExigeAprovacao(dados.exigeAprovacao());
+
+        return AreaComumResponseDTO.from(areaComumRepository.save(area));
+    }
+
+    @Transactional
+    public AreaComumResponseDTO alterarStatusAreaComum(UUID id, boolean ativo) {
+        var area = buscarAreaComumEntidade(id);
+        area.setAtivo(ativo);
+        return AreaComumResponseDTO.from(areaComumRepository.save(area));
+    }
+
+    // ---------------------------------------------------------------------
     // Auxiliares
     // ---------------------------------------------------------------------
+
+    private AreaComum buscarAreaComumEntidade(UUID id) {
+        return areaComumRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Área comum não encontrada."));
+    }
 
     private Torre buscarTorreEntidade(UUID id) {
         return torreRepository.findById(id)

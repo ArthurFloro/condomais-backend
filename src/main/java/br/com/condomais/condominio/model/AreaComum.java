@@ -30,6 +30,9 @@ public class AreaComum {
     @Column(name = "exige_aprovacao", nullable = false)
     private Boolean exigeAprovacao;
 
+    @Column(nullable = false)
+    private Boolean ativo = true;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "condominio_id", nullable = false)
     private Condominio condominio;
