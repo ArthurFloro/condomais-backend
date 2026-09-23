@@ -26,6 +26,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(req -> {
                     // Rotas públicas para login e primeiro acesso
                     req.requestMatchers("/auth/login", "/auth").permitAll();
+                    // Documentação da API (Swagger UI / OpenAPI); as rotas em si continuam protegidas
+                    req.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     // Qualquer outra requisição exige usuário autenticado
                     req.anyRequest().authenticated();
                 })

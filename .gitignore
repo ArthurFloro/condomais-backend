@@ -31,3 +31,9 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Configuração local (credenciais do banco)
+application-local.properties
+
+### Contexto do Claude Code (não sobe pro repositório)
+CLAUDE.md
