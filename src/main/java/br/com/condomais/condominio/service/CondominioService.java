@@ -4,6 +4,8 @@ import br.com.condomais.condominio.dto.*;
 import br.com.condomais.condominio.model.*;
 import br.com.condomais.condominio.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -74,5 +76,65 @@ public class CondominioService {
         area.setCondominio(condominio);
 
         return areaComumRepository.save(area);
+    }
+
+    // ---------------------------------------------------------------------
+    // Condomínio
+    // ---------------------------------------------------------------------
+
+    @Transactional(readOnly = true)
+    public List<Condominio> listarCondominios() {
+        return condominioRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Condominio buscarCondominio(UUID id) {
+        return condominioRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Condomínio não encontrado."));
+    }
+
+    @Transactional
+    public Condominio atualizarCondominio(UUID id, CondominioDTO dados) {
+        var condominio = buscarCondominio(id);
+
+        if (condominioRepository.existsByCnpjAndIdNot(dados.cnpj(), id)) {
+            throw new IllegalArgumentException("Já existe outro condomínio cadastrado com este CNPJ.");
+        }
+
+        condominio.setNome(dados.nome());
+        condominio.setCnpj(dados.cnpj());
+        condominio.setStatus(dados.status().toUpperCase());
+        return condominioRepository.save(condominio);
+    }
+
+    @Transactional
+    public void excluirCondominio(UUID id) {
+        var condominio = buscarCondominio(id);
+
+        if (torreRepository.existsByCondominioId(id)
+                || apartamentoRepository.existsByCondominioId(id)
+                || areaComumRepository.existsByCondominioId(id)) {
+            throw new IllegalArgumentException(
+                    "Não é possível excluir o condomínio: existem torres, apartamentos ou áreas comuns vinculados.");
+        }
+
+        excluir(condominioRepository, condominio);
+    }
+
+    // ---------------------------------------------------------------------
+    // Auxiliares
+    // ---------------------------------------------------------------------
+
+    /**
+     * Exclui e força o flush para que violações de FK (registros de outros módulos
+     * apontando para a entidade) sejam capturadas aqui, e não só no commit.
+     */
+    private <T> void excluir(JpaRepository<T, UUID> repository, T entidade) {
+        try {
+            repository.delete(entidade);
+            repository.flush();
+        } catch (DataIntegrityViolationException e) {
+            throw new IllegalArgumentException("Não é possível excluir: existem registros vinculados a este item.");
+        }
     }
 }

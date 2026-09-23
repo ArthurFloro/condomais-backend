@@ -9,4 +9,5 @@ import java.util.UUID;
 public interface AreaComumRepository extends JpaRepository<AreaComum, UUID> {
     List<AreaComum> findByCondominioId(UUID condominioId);
     Optional<AreaComum> findByIdAndCondominioId(UUID id, UUID condominioId);
+    boolean existsByCondominioId(UUID condominioId);
 }

@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface CondominioRepository extends JpaRepository<Condominio, UUID> {
     Optional<Condominio> findByCnpj(String cnpj);
+    boolean existsByCnpjAndIdNot(String cnpj, UUID id);
 }

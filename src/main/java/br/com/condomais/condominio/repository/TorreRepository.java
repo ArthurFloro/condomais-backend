@@ -8,4 +8,5 @@ import java.util.UUID;
 
 public interface TorreRepository extends JpaRepository<Torre, UUID> {
     Optional<Torre> findByCondominioId(UUID condominioId);
+    boolean existsByCondominioId(UUID condominioId);
 }

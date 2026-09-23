@@ -9,6 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+import java.util.UUID;
+
 @RestController
 @RequestMapping("/condominios")
 @Tag(name = "Módulo 2 - Estrutura Condominial", description = "Gerenciamento de condomínios, torres, apartamentos e áreas comuns (Modelo Multi-Condomínio).")
@@ -43,5 +46,34 @@ public class CondominioController {
     public ResponseEntity<AreaComum> cadastrarAreaComum(@RequestBody AreaComumDTO dados) {
         AreaComum area = condominioService.cadastrarAreaComum(dados);
         return ResponseEntity.ok(area);
+    }
+
+    // ---------------------------------------------------------------------
+    // Condomínio
+    // ---------------------------------------------------------------------
+
+    @GetMapping
+    @Operation(summary = "Listar condomínios", description = "Retorna todos os condomínios cadastrados na plataforma.")
+    public ResponseEntity<List<Condominio>> listarCondominios() {
+        return ResponseEntity.ok(condominioService.listarCondominios());
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Buscar condomínio por ID", description = "Retorna os dados de um condomínio específico.")
+    public ResponseEntity<Condominio> buscarCondominio(@PathVariable UUID id) {
+        return ResponseEntity.ok(condominioService.buscarCondominio(id));
+    }
+
+    @PutMapping("/{id}")
+    @Operation(summary = "Editar condomínio", description = "Atualiza nome, CNPJ e status do condomínio. O CNPJ não pode pertencer a outro condomínio.")
+    public ResponseEntity<Condominio> atualizarCondominio(@PathVariable UUID id, @RequestBody CondominioDTO dados) {
+        return ResponseEntity.ok(condominioService.atualizarCondominio(id, dados));
+    }
+
+    @DeleteMapping("/{id}")
+    @Operation(summary = "Excluir condomínio", description = "Remove o condomínio. Bloqueado se houver torres, apartamentos, áreas comuns ou outros registros vinculados.")
+    public ResponseEntity<Void> excluirCondominio(@PathVariable UUID id) {
+        condominioService.excluirCondominio(id);
+        return ResponseEntity.noContent().build();
     }
 }
