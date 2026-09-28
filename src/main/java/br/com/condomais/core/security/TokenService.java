@@ -5,6 +5,7 @@ import br.com.condomais.auth.model.Usuario;
 import com.auth0.jwt.JWT;
 import com.auth0.jwt.algorithms.Algorithm;
 import com.auth0.jwt.exceptions.JWTCreationException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -15,6 +16,9 @@ import java.time.ZoneOffset;
 @Service
 public class TokenService {
 
+    // Geração e validação precisam usar o mesmo issuer, senão todo token é rejeitado
+    private static final String ISSUER = "condomais-api";
+
     @Value("${api.security.token.secret:condoplus-secret-key}")
     private String secret;
 
@@ -22,7 +26,7 @@ public class TokenService {
         try {
             Algorithm algoritmo = Algorithm.HMAC256(secret);
             return JWT.create()
-                    .withIssuer("condomais-api")
+                    .withIssuer(ISSUER)
                     .withSubject(usuario.getCpf())
                     .withClaim("id", usuario.getId().toString())
                     .withClaim("perfil", usuario.getPerfil())
@@ -42,11 +46,11 @@ public class TokenService {
         try {
             Algorithm algoritmo = Algorithm.HMAC256(secret);
             return JWT.require(algoritmo)
-                    .withIssuer("condoplus-api")
+                    .withIssuer(ISSUER)
                     .build()
                     .verify(token)
                     .getSubject();
-        } catch (JWTCreationException exception) {
+        } catch (JWTVerificationException exception) {
             throw new RuntimeException("Token JWT inválido ou expirado!");
         }
     }
