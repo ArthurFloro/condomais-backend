@@ -1,5 +1,7 @@
 package br.com.condomais.interativo.service;
 
+import br.com.condomais.core.exception.ConflitoException;
+import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.auth.repository.UsuarioApartamentoRepository;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.repository.AreaComumRepository;
@@ -22,14 +24,14 @@ public class ReservaService {
     @Transactional
     public Reserva solicitarReserva(SolicitacaoReservaDTO dados, UUID moradorId, UUID condominioId) {
         var area = areaComumRepository.findByIdAndCondominioId(dados.areaId(), condominioId)
-                .orElseThrow(() -> new IllegalArgumentException("Área comum não encontrada."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Área comum não encontrada."));
 
         if (!area.getReservavel()) {
             throw new IllegalArgumentException("Esta área não está configurada como reservável (RN-RES-001).");
         }
 
         if (reservaRepository.existeConflitoDeHorario(area.getId(), dados.dataReserva(), dados.horarioInicio(), dados.horarioFim())) {
-            throw new IllegalStateException("Horário indisponível. Já existe uma reserva conflitante (RN-RES-002).");
+            throw new ConflitoException("Horário indisponível. Já existe uma reserva conflitante (RN-RES-002).");
         }
 
         var morador = usuarioRepository.findById(moradorId).orElseThrow();
