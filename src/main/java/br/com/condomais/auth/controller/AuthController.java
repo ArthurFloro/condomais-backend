@@ -44,14 +44,20 @@ public class AuthController {
     @PostMapping("/primeiro-acesso")
     @Operation(
             summary = "Primeiro acesso e criação de senha",
-            description = "Permite que um usuário com CPF previamente cadastrado administrativamente crie sua própria senha. O sistema não possui cadastro público livre (RN-AUT-001)."
+            description = "Permite que um usuário com CPF previamente cadastrado administrativamente, e que ainda não possui senha, crie sua própria senha. O sistema não possui cadastro público livre (RN-AUT-001)."
     )
     public ResponseEntity<String> primeiroAcesso(@RequestBody PrimeiroAcessoDTO dados) {
+        if (dados.novaSenha() == null || dados.novaSenha().isBlank()) {
+            return ResponseEntity.badRequest().body("Informe a nova senha.");
+        }
+
         // Consulta se o CPF já está pré-cadastrado pela Administração
         Optional<Usuario> usuarioOpt = usuarioRepository.findByCpf(dados.cpf());
 
-        if (usuarioOpt.isEmpty()) {
-            return ResponseEntity.status(403).body("Acesso negado: CPF não possui cadastro prévio no condomínio.");
+        // Rota pública: só cria senha para quem ainda não tem, senão qualquer um com o CPF
+        // tomaria a conta. Mesma resposta nos dois casos para não revelar quais CPFs existem.
+        if (usuarioOpt.isEmpty() || usuarioOpt.get().getSenha() != null) {
+            return ResponseEntity.status(403).body("Primeiro acesso indisponível para este CPF. Se você já possui senha, utilize a recuperação de senha.");
         }
 
         Usuario usuario = usuarioOpt.get();

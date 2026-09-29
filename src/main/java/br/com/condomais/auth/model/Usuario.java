@@ -32,7 +32,8 @@ public class Usuario {
     @Column(length = 20)
     private String telefone;
 
-    @Column(nullable = false, length = 255)
+    // Nula até o primeiro acesso: a Administração pré-cadastra o usuário sem senha
+    @Column(length = 255)
     private String senha;
 
     @Column(nullable = false, length = 50)
