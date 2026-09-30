@@ -1,0 +1,8 @@
+# Nunca levar credenciais locais nem artefatos para a imagem
+src/main/resources/application-local.properties
+target/
+.git/
+.idea/
+*.iml
+docs/
+CLAUDE.md
