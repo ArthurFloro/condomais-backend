@@ -1,5 +1,7 @@
 package br.com.condomais.core.security;
 
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -9,6 +11,7 @@ import org.springframework.security.config.annotation.authentication.configurati
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
@@ -16,6 +19,8 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 
 @Configuration
@@ -39,12 +44,25 @@ public class SecurityConfig {
                     req.requestMatchers("/auth/login", "/auth/primeiro-acesso").permitAll();
                     // Documentação da API (Swagger UI / OpenAPI); as rotas em si continuam protegidas
                     req.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
+                    // Página de erro do Spring: sem isso, qualquer erro não tratado virava 403
+                    req.requestMatchers("/error").permitAll();
                     // Qualquer outra requisição exige usuário autenticado
                     req.anyRequest().authenticated();
                 })
+                // Sem token (ou token inválido/expirado) em rota protegida: 401, no mesmo formato do GlobalExceptionHandler
+                .exceptionHandling(ex -> ex.authenticationEntryPoint(this::responderNaoAutenticado))
                 // Adiciona o nosso filtro antes do UsernamePasswordAuthenticationFilter
                 .addFilterBefore(securityFilter, org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter.class)
                 .build();
+    }
+
+    private void responderNaoAutenticado(HttpServletRequest request, HttpServletResponse response, AuthenticationException e) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.setCharacterEncoding("UTF-8");
+        response.getWriter().write("""
+                {"status":401,"erro":"Unauthorized","mensagem":"Token ausente, inválido ou expirado.","caminho":"%s","timestamp":"%s"}"""
+                .formatted(request.getRequestURI().replace("\\", "\\\\").replace("\"", "\\\""), Instant.now()));
     }
 
     // CORS para o front-end: token vai no header Authorization, então não há cookies/credentials

@@ -1,5 +1,6 @@
 package br.com.condomais.portaria.service;
 
+import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.repository.ApartamentoRepository;
 import br.com.condomais.portaria.dto.RegistroEntradaDTO;
@@ -30,10 +31,10 @@ public class VisitaService {
     public Visita registrarEntrada(RegistroEntradaDTO dados, UUID porteiroId, UUID condominioId) {
         // Valida o apartamento respeitando o isolamento do condomínio (RN-CON-004)
         var apartamento = apartamentoRepository.findByIdAndCondominioId(dados.apartamentoId(), condominioId)
-                .orElseThrow(() -> new IllegalArgumentException("Apartamento não encontrado neste condomínio."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Apartamento não encontrado neste condomínio."));
 
         var porteiro = usuarioRepository.findById(porteiroId)
-                .orElseThrow(() -> new IllegalArgumentException("Porteiro não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Porteiro não encontrado."));
 
         // Busca ou cadastra o visitante na hora (RF-POR-004)
         var visitante = visitanteRepository.findByCpf(dados.cpf()).orElseGet(() -> {
@@ -60,7 +61,7 @@ public class VisitaService {
     @Transactional
     public Visita registrarSaida(UUID visitaId, UUID porteiroId, UUID condominioId) {
         var visita = visitaRepository.findById(visitaId)
-                .orElseThrow(() -> new IllegalArgumentException("Visita não encontrada."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Visita não encontrada."));
 
         // Valida se a visita pertence ao condomínio do porteiro logado
         if (!visita.getCondominio().getId().equals(condominioId)) {
@@ -68,7 +69,7 @@ public class VisitaService {
         }
 
         var porteiro = usuarioRepository.findById(porteiroId)
-                .orElseThrow(() -> new IllegalArgumentException("Porteiro não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Porteiro não encontrado."));
 
         // Atualiza status e horários (RF-POR-007)
         visita.setStatus("SAIU");

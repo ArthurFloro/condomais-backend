@@ -1,5 +1,6 @@
 package br.com.condomais.interativo.service;
 
+import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.repository.TorreRepository;
 import br.com.condomais.interativo.dto.RegistroAvisoDTO;
@@ -25,7 +26,7 @@ public class AvisoService {
     @Transactional
     public Aviso publicarAviso(RegistroAvisoDTO dados, UUID autorId, UUID condominioId) {
         var autor = usuarioRepository.findById(autorId)
-                .orElseThrow(() -> new IllegalArgumentException("Autor não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Autor não encontrado."));
 
         var aviso = new Aviso();
         aviso.setTitulo(dados.titulo());
@@ -49,7 +50,7 @@ public class AvisoService {
         // Regra de direcionamento: verifica se é para uma torre/bloco específico
         if (dados.torreId() != null) {
             var torre = torreRepository.findById(dados.torreId())
-                    .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
 
             // Valida se a torre pertence ao condomínio atual antes de direcionar
             if (!torre.getCondominio().getId().equals(condominioId)) {

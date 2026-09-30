@@ -1,5 +1,6 @@
 package br.com.condomais.atendimento.service;
 
+import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.atendimento.dto.AberturaChamadoDTO;
 import br.com.condomais.atendimento.model.*;
 import br.com.condomais.atendimento.repository.*;
@@ -25,7 +26,7 @@ public class ChamadoService {
     public Chamado abrirChamado(AberturaChamadoDTO dados, UUID solicitanteId, UUID condominioId) {
         var solicitante = usuarioRepository.findById(solicitanteId).orElseThrow();
         var categoria = categoriaRepository.findByIdAndCondominioId(dados.categoriaId(), condominioId)
-                .orElseThrow(() -> new IllegalArgumentException("Categoria não encontrada."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada."));
 
         var chamado = new Chamado();
         chamado.setTitulo(dados.titulo());

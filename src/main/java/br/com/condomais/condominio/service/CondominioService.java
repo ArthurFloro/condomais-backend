@@ -1,5 +1,7 @@
 package br.com.condomais.condominio.service;
 
+import br.com.condomais.core.exception.ConflitoException;
+import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.condominio.dto.*;
 import br.com.condomais.condominio.model.*;
 import br.com.condomais.condominio.repository.*;
@@ -35,7 +37,7 @@ public class CondominioService {
     @Transactional
     public Torre cadastrarTorre(TorreDTO dados) {
         var condominio = condominioRepository.findById(dados.condominioId())
-                .orElseThrow(() -> new IllegalArgumentException("Condomínio não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
 
         var torre = new Torre();
         torre.setNome(dados.nome());
@@ -46,7 +48,7 @@ public class CondominioService {
     @Transactional
     public Apartamento cadastrarApartamento(ApartamentoDTO dados) {
         var condominio = condominioRepository.findById(dados.condominioId())
-                .orElseThrow(() -> new IllegalArgumentException("Condomínio não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
 
         var apartamento = new Apartamento();
         apartamento.setNumero(dados.numero());
@@ -55,7 +57,7 @@ public class CondominioService {
 
         if (dados.torreId() != null) {
             var torre = torreRepository.findById(dados.torreId())
-                    .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
             apartamento.setTorre(torre);
         }
 
@@ -65,7 +67,7 @@ public class CondominioService {
     @Transactional
     public AreaComum cadastrarAreaComum(AreaComumDTO dados) {
         var condominio = condominioRepository.findById(dados.condominioId())
-                .orElseThrow(() -> new IllegalArgumentException("Condomínio não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
 
         var area = new AreaComum();
         area.setNome(dados.nome());
@@ -90,7 +92,7 @@ public class CondominioService {
     @Transactional(readOnly = true)
     public Condominio buscarCondominio(UUID id) {
         return condominioRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Condomínio não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
     }
 
     @Transactional
@@ -98,7 +100,7 @@ public class CondominioService {
         var condominio = buscarCondominio(id);
 
         if (condominioRepository.existsByCnpjAndIdNot(dados.cnpj(), id)) {
-            throw new IllegalArgumentException("Já existe outro condomínio cadastrado com este CNPJ.");
+            throw new ConflitoException("Já existe outro condomínio cadastrado com este CNPJ.");
         }
 
         condominio.setNome(dados.nome());
@@ -114,7 +116,7 @@ public class CondominioService {
         if (torreRepository.existsByCondominioId(id)
                 || apartamentoRepository.existsByCondominioId(id)
                 || areaComumRepository.existsByCondominioId(id)) {
-            throw new IllegalArgumentException(
+            throw new ConflitoException(
                     "Não é possível excluir o condomínio: existem torres, apartamentos ou áreas comuns vinculados.");
         }
 
@@ -151,7 +153,7 @@ public class CondominioService {
         var torre = buscarTorreEntidade(id);
 
         if (apartamentoRepository.existsByTorreId(id)) {
-            throw new IllegalArgumentException("Não é possível excluir a torre: existem apartamentos vinculados.");
+            throw new ConflitoException("Não é possível excluir a torre: existem apartamentos vinculados.");
         }
 
         excluir(torreRepository, torre);
@@ -192,7 +194,7 @@ public class CondominioService {
         // mas pode trocar de torre desde que ela pertença ao mesmo condomínio.
         if (dados.torreId() != null) {
             var torre = torreRepository.findById(dados.torreId())
-                    .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
             if (!torre.getCondominio().getId().equals(apartamento.getCondominio().getId())) {
                 throw new IllegalArgumentException("A torre informada não pertence ao condomínio do apartamento.");
             }
@@ -258,17 +260,17 @@ public class CondominioService {
 
     private AreaComum buscarAreaComumEntidade(UUID id) {
         return areaComumRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Área comum não encontrada."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Área comum não encontrada."));
     }
 
     private Torre buscarTorreEntidade(UUID id) {
         return torreRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Torre não encontrada."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
     }
 
     private Apartamento buscarApartamentoEntidade(UUID id) {
         return apartamentoRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Apartamento não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Apartamento não encontrado."));
     }
 
     /**
@@ -280,7 +282,7 @@ public class CondominioService {
             repository.delete(entidade);
             repository.flush();
         } catch (DataIntegrityViolationException e) {
-            throw new IllegalArgumentException("Não é possível excluir: existem registros vinculados a este item.");
+            throw new ConflitoException("Não é possível excluir: existem registros vinculados a este item.");
         }
     }
 }

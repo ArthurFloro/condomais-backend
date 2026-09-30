@@ -27,15 +27,21 @@ public class SecurityFilter extends OncePerRequestFilter {
         var tokenJWT = recuperarToken(request);
 
         if (tokenJWT != null) {
-            // Recupera o CPF do usuário a partir do token
-            var subject = tokenService.getSubject(tokenJWT);
-            var usuario = usuarioRepository.findByCpf(subject).orElseThrow();
+            try {
+                // Recupera o CPF do usuário a partir do token
+                var subject = tokenService.getSubject(tokenJWT);
+                var usuario = usuarioRepository.findByCpf(subject).orElseThrow();
 
-            var usuarioAutenticado = new UsuarioAutenticado(usuario);
-            var authentication = new UsernamePasswordAuthenticationToken(usuarioAutenticado, null, usuarioAutenticado.getAuthorities());
+                var usuarioAutenticado = new UsuarioAutenticado(usuario);
+                var authentication = new UsernamePasswordAuthenticationToken(usuarioAutenticado, null, usuarioAutenticado.getAuthorities());
 
-            // Força a autenticação neste request
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                // Força a autenticação neste request
+                SecurityContextHolder.getContext().setAuthentication(authentication);
+            } catch (RuntimeException e) {
+                // Token inválido/expirado ou usuário removido: segue sem autenticação e o
+                // SecurityConfig responde 401 nas rotas protegidas (em vez de estourar no filtro)
+                SecurityContextHolder.clearContext();
+            }
         }
 
         filterChain.doFilter(request, response);

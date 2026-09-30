@@ -1,5 +1,6 @@
 package br.com.condomais.portaria.service;
 
+import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.auth.repository.UsuarioApartamentoRepository;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.repository.ApartamentoRepository;
@@ -29,10 +30,10 @@ public class EncomendaService {
     public Encomenda registrarRecebimento(RegistroEncomendaDTO dados, UUID porteiroId, UUID condominioId) {
         // Valida o apartamento e o isolamento do condomínio (RN-CON-004)
         var apartamento = apartamentoRepository.findByIdAndCondominioId(dados.apartamentoId(), condominioId)
-                .orElseThrow(() -> new IllegalArgumentException("Apartamento não encontrado neste condomínio."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Apartamento não encontrado neste condomínio."));
 
         var porteiro = usuarioRepository.findById(porteiroId)
-                .orElseThrow(() -> new IllegalArgumentException("Porteiro não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Porteiro não encontrado."));
 
         var encomenda = new Encomenda();
         encomenda.setApartamento(apartamento);
@@ -57,14 +58,14 @@ public class EncomendaService {
     @Transactional
     public Encomenda registrarRetirada(UUID encomendaId, UUID porteiroId, UUID condominioId) {
         var encomenda = encomendaRepository.findById(encomendaId)
-                .orElseThrow(() -> new IllegalArgumentException("Encomenda não encontrada."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Encomenda não encontrada."));
 
         if (!encomenda.getCondominio().getId().equals(condominioId)) {
             throw new SecurityException("Acesso negado a dados de outro condomínio.");
         }
 
         var porteiro = usuarioRepository.findById(porteiroId)
-                .orElseThrow(() -> new IllegalArgumentException("Porteiro não encontrado."));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Porteiro não encontrado."));
 
         // Atualiza status para RETIRADA e registra a rastreabilidade (RF-POR-012, RN-POR-009)
         encomenda.setStatus("RETIRADA");
