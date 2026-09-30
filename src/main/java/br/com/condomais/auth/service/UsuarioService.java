@@ -46,6 +46,12 @@ public class UsuarioService {
                 .toList();
     }
 
+    // Dados de quem está logado: qualquer perfil (o morador usa para montar a própria área)
+    @Transactional(readOnly = true)
+    public UsuarioResponseDTO meusDados(UsuarioAutenticado auth) {
+        return UsuarioResponseDTO.from(buscarEntidade(auth.getId(), auth));
+    }
+
     @Transactional(readOnly = true)
     public UsuarioResponseDTO buscar(UUID id, UsuarioAutenticado auth) {
         exigirAdmin(auth);

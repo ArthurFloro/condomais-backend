@@ -16,7 +16,8 @@ public record UsuarioResponseDTO(
         UUID apartamentoId,
         String apartamentoNumero,
         String torreNome,
-        boolean primeiroAcessoPendente
+        boolean primeiroAcessoPendente,
+        String condominioNome
 ) {
     public static UsuarioResponseDTO from(Usuario usuario) {
         var apartamento = usuario.getApartamento();
@@ -33,7 +34,8 @@ public record UsuarioResponseDTO(
                 apartamento != null ? apartamento.getId() : null,
                 apartamento != null ? apartamento.getNumero() : null,
                 torre != null ? torre.getNome() : null,
-                usuario.getSenha() == null
+                usuario.getSenha() == null,
+                usuario.getCondominio() != null ? usuario.getCondominio().getNome() : null
         );
     }
 }
