@@ -181,6 +181,22 @@ class UsuarioServiceTest {
     }
 
     @Test
+    void qualquerPerfilConsultaOsProprioDados() {
+        condominio.setNome("Residencial Teste");
+        var morador = usuario("MORADOR");
+        morador.setApartamento(apartamento());
+        morador.setVinculo("INQUILINO");
+        when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
+
+        var resposta = service.meusDados(new UsuarioAutenticado(morador));
+
+        assertEquals(morador.getId(), resposta.id());
+        assertEquals("101", resposta.apartamentoNumero());
+        assertEquals("Torre A", resposta.torreNome());
+        assertEquals("Residencial Teste", resposta.condominioNome());
+    }
+
+    @Test
     void validacaoDeDigitosDoCpf() {
         assertTrue(UsuarioService.cpfValido("52998224725"));
         assertTrue(UsuarioService.cpfValido("15729185430"));

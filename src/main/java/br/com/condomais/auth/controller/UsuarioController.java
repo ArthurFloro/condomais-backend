@@ -28,8 +28,14 @@ public class UsuarioController {
         return ResponseEntity.ok(usuarioService.listar(auth()));
     }
 
+    @GetMapping("/me")
+    @Operation(summary = "Meus dados", description = "Dados do usuário autenticado (qualquer perfil): nome, perfil, unidade, vínculo e condomínio.")
+    public ResponseEntity<UsuarioResponseDTO> meusDados() {
+        return ResponseEntity.ok(usuarioService.meusDados(auth()));
+    }
+
     @GetMapping("/{id}")
-    @Operation(summary = "Consultar usuário")
+    @Operation(summary = "Consultar usuário (somente ADMIN)")
     public ResponseEntity<UsuarioResponseDTO> buscar(@PathVariable UUID id) {
         return ResponseEntity.ok(usuarioService.buscar(id, auth()));
     }
