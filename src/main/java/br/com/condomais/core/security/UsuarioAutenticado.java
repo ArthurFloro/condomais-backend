@@ -25,6 +25,10 @@ public class UsuarioAutenticado implements UserDetails {
         return usuario.getCondominio().getId();
     }
 
+    public String getPerfil() {
+        return usuario.getPerfil();
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getPerfil().toUpperCase()));
@@ -47,5 +51,5 @@ public class UsuarioAutenticado implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
     @Override
-    public boolean isEnabled() { return true; }
+    public boolean isEnabled() { return usuario.isAtivo(); }
 }

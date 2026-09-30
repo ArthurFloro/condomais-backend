@@ -1,5 +1,6 @@
 package br.com.condomais.auth.model;
 
+import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.Condominio;
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
@@ -37,9 +38,25 @@ public class Usuario {
     private String senha;
 
     @Column(nullable = false, length = 50)
-    private String perfil; // Admin, Portaria, Morador, etc.
+    private String perfil; // ADMIN, PORTARIA, MORADOR
+
+    // ATIVO ou INATIVO; nulo (registros antigos) conta como ativo. Inativo não consegue logar.
+    @Column(length = 20)
+    private String status = "ATIVO";
+
+    // Unidade do morador; nulo para administração e portaria
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "apartamento_id")
+    private Apartamento apartamento;
+
+    @Column(length = 20)
+    private String vinculo; // PROPRIETARIO, INQUILINO (só para MORADOR)
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "condominio_id", nullable = false)
     private Condominio condominio;
+
+    public boolean isAtivo() {
+        return !"INATIVO".equals(status);
+    }
 }

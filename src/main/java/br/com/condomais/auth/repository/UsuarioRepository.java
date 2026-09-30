@@ -11,4 +11,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
 
     // Busca isolada por condomínio
     List<Usuario> findByCondominioId(UUID condominioId);
+
+    List<Usuario> findByCondominioIdOrderByNomeAsc(UUID condominioId);
+
+    Optional<Usuario> findByIdAndCondominioId(UUID id, UUID condominioId);
 }
