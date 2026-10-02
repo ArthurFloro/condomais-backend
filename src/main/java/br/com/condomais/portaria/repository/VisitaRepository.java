@@ -8,4 +8,7 @@ import java.util.UUID;
 public interface VisitaRepository extends JpaRepository<Visita, UUID> {
     List<Visita> findByCondominioId(UUID condominioId);
     List<Visita> findByCondominioIdAndStatus(UUID condominioId, String status);
+
+    // Assistente: visitas da unidade do morador, mais recentes primeiro (sem entrada registrada ficam no fim)
+    List<Visita> findTop20ByCondominioIdAndApartamentoIdOrderByDataHoraEntradaDescDataPrevistaDesc(UUID condominioId, UUID apartamentoId);
 }
