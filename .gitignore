@@ -35,5 +35,5 @@ build/
 ### Configuração local (credenciais do banco)
 application-local.properties
 
-### Contexto do Claude Code (não sobe pro repositório)
-CLAUDE.md
+### Claude Code: o CLAUDE.md é compartilhado; as permissões de cada máquina não
+.claude/settings.local.json
