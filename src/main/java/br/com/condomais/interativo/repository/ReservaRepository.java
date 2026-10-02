@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.List;
 import java.util.UUID;
 
 public interface ReservaRepository extends JpaRepository<Reserva, UUID> {
@@ -19,4 +20,7 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID> {
                                     @Param("data") LocalDate data,
                                     @Param("inicio") LocalTime inicio,
                                     @Param("fim") LocalTime fim);
+
+    // Assistente: reservas feitas pelo morador, mais recentes primeiro
+    List<Reserva> findTop20ByCondominioIdAndMoradorIdOrderByDataReservaDescHorarioInicioDesc(UUID condominioId, UUID moradorId);
 }

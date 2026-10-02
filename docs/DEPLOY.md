@@ -37,6 +37,7 @@ Ordem: **Neon → Render → Vercel → voltar no Render para liberar o CORS**.
    | `DATABASE_PASSWORD` | senha do Neon |
    | `JWT_SECRET` | texto longo e aleatório (**gere um novo**; veja abaixo) |
    | `CORS_ALLOWED_ORIGINS` | por enquanto `https://example.com`; troque pela URL da Vercel no passo 4 |
+   | `ANTHROPIC_API_KEY` | *(opcional)* chave da Claude API (console.anthropic.com) para ligar o assistente virtual do morador. Sem ela, `POST /assistente/mensagens` responde 503 e o resto funciona normalmente |
 
    O `Dockerfile` já define `SPRING_PROFILES_ACTIVE=prod`, e o Render informa a `PORT` sozinho.
 

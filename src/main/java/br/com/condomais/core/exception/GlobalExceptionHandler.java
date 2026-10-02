@@ -77,6 +77,11 @@ public class GlobalExceptionHandler {
         return responder(HttpStatus.FORBIDDEN, e.getMessage(), request);
     }
 
+    @ExceptionHandler(ServicoIndisponivelException.class)
+    public ResponseEntity<ErroResponseDTO> indisponivel(ServicoIndisponivelException e, HttpServletRequest request) {
+        return responder(HttpStatus.SERVICE_UNAVAILABLE, e.getMessage(), request);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErroResponseDTO> erroInesperado(Exception e, HttpServletRequest request) {
         // Exceções do próprio Spring MVC (405, 404 de rota inexistente, 415...) já trazem o status correto

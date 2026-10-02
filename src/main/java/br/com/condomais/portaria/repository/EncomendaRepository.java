@@ -8,4 +8,7 @@ import java.util.UUID;
 public interface EncomendaRepository extends JpaRepository<Encomenda, UUID> {
     List<Encomenda> findByCondominioId(UUID condominioId);
     List<Encomenda> findByCondominioIdAndApartamentoId(UUID condominioId, UUID apartamentoId);
+
+    // Assistente: encomendas da unidade do morador, mais recentes primeiro
+    List<Encomenda> findTop20ByCondominioIdAndApartamentoIdOrderByDataHoraRecebimentoDesc(UUID condominioId, UUID apartamentoId);
 }
