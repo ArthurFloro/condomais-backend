@@ -8,7 +8,4 @@ import java.util.UUID;
 
 public interface ChamadoRepository extends JpaRepository<Chamado, UUID> {
     List<Chamado> findByCondominioId(UUID condominioId);
-
-    // Assistente: chamados abertos pelo morador, mais recentes primeiro
-    List<Chamado> findTop20ByCondominioIdAndSolicitanteIdOrderByDataAberturaDesc(UUID condominioId, UUID solicitanteId);
 }
