@@ -30,7 +30,7 @@ Bash/Git Bash equivalents use `./mvnw` instead of `.\mvnw.cmd`.
 
 Once running: API on `http://localhost:8080`, Swagger UI on `http://localhost:8080/swagger-ui.html` (publicly accessible; the underlying business routes still require a bearer token).
 
-Production runs the `prod` profile (`application-prod.properties`): every sensitive value comes from env vars with **no defaults** (`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`), so a missing one fails startup on purpose. Deploy target is Render (Docker, `Dockerfile` sets `SPRING_PROFILES_ACTIVE=prod`) + Neon; a fresh database is created with `docs/sql/deploy/01-schema.sql` (Hibernate-generated from the entities; regenerate with `schema-generation.scripts.action=create` when entities change) and `02-dados-iniciais.sql`. Step-by-step in `docs/DEPLOY.md`.
+Production runs the `prod` profile (`application-prod.properties`): every sensitive value comes from env vars with **no defaults** (`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`, `JWT_SECRET`, `CORS_ALLOWED_ORIGINS`), so a missing one fails startup on purpose (`ASSISTENTE_API_URL` is the exception: optional, empty means the assistant is off). Deploy target is Render (Docker, `Dockerfile` sets `SPRING_PROFILES_ACTIVE=prod`) + Neon; a fresh database is created with `docs/sql/deploy/01-schema.sql` (Hibernate-generated from the entities; regenerate with `schema-generation.scripts.action=create` when entities change) and `02-dados-iniciais.sql`. Step-by-step in `docs/DEPLOY.md`.
 
 `src/main/resources/application-local.properties` is gitignored and holds real local DB credentials, overriding the committed `application.properties` placeholders when `-Dspring.profiles.active=local` (or `SPRING_PROFILES_ACTIVE=local`) is active. `spring.jpa.hibernate.ddl-auto=update` only applies in that local profile; the default profile uses `validate`.
 
@@ -43,6 +43,7 @@ Spring Boot 4.1 / Java 17 REST API for **Condo+**, a multi-tenant condominium ma
 - `portaria` — **Módulo 3**: visitantes, `Visita` (entrada/saída), `Encomenda`.
 - `interativo` — **Módulo 4**: `Aviso` (announcements) and `Reserva` (common-area booking engine).
 - `atendimento` — **Módulo 5**: `Chamado` (support tickets), `CategoriaChamado`, `HistoricoChamado`.
+- `assistente` — assistente virtual do morador (`POST /assistente/mensagens`, só `MORADOR`). **Este serviço não fala com a IA**: `AssistenteService` é um cliente HTTP (`RestClient`) que repassa a conversa, com o mesmo `Authorization` do morador, ao serviço Python `condomais-assistente` (repo `ArthurFloro/condomais-assistente`), configurado por `ASSISTENTE_API_URL` (sem ela, 503). O serviço Python valida o mesmo JWT (`JWT_SECRET` idêntico nos dois) e consulta o banco por views somente leitura. Erros 400/403/429/503 dele voltam com a mesma semântica; qualquer outro vira 503 genérico (e 401 de lá significa segredo diferente entre os serviços). Prompt, ferramentas e modelo ficam todos no repo Python — não reintroduza SDK de IA aqui.
 - `core.security` — JWT auth plumbing (see below).
 - `core.config` — `SwaggerConfig` (springdoc OpenAPI, bearer auth scheme).
 
