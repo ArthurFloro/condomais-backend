@@ -90,7 +90,7 @@ Both custom exceptions extend `IllegalArgumentException`. Bare `orElseThrow()` b
 - Commit messages in Brazilian Portuguese, with conventional-commit prefixes kept in English (`feat:`, `fix:`, `docs:`, `chore:`), as in the existing history.
 - Work on a branch and open a PR to `main`; never push straight to `main`.
 - Front-end: repo `haveso27/condo_mais` (React/Vite/pnpm). Contributors push branches straight to it (no fork). Login is by CPF on both sides, sent formatted (`000.000.000-00`). To edit it from a backend session, add its local clone with `/add-dir`.
-- Production: front on Vercel (`https://condo-mais.vercel.app`, published from a fork that needs "Sync fork" after each merge to the original repo), API on Render (`https://condomais-backend.onrender.com`, **no auto-deploy**: "Manual Deploy → Deploy latest commit" after each merge; health check `/v3/api-docs`), database on Neon. When a PR changes the model, its SQL in `docs/sql/` must be run by hand in Neon's SQL Editor. Details in `docs/DEPLOY.md`.
+- Production: front on Vercel (`https://condo-mais.vercel.app`, published from a fork that needs "Sync fork" after each merge to the original repo), API on Render (`https://condomais-backend.onrender.com`, **auto-deploy on every merge to `main`**, so a merge is a production release; health check `/v3/api-docs`), database on Neon. A new env var must be set on Render **before** merging the PR that needs it. When a PR changes the model, its SQL in `docs/sql/` must be run by hand in Neon's SQL Editor right after the merge. Details in `docs/DEPLOY.md`.
 
 ## Known gaps (agreed backlog, in priority order)
 
