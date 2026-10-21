@@ -1,7 +1,9 @@
 package br.com.condomais.condominio.service;
 
+import br.com.condomais.auth.service.UsuarioService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
+import br.com.condomais.core.security.UsuarioAutenticado;
 import br.com.condomais.condominio.dto.*;
 import br.com.condomais.condominio.model.*;
 import br.com.condomais.condominio.repository.*;
@@ -15,6 +17,11 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Estrutura do condomínio. Tudo é escopado pelo condomínio do token: um registro de outro condomínio
+ * responde 404, como se não existisse, e o condominioId enviado pelo cliente é ignorado. Leitura é
+ * liberada para qualquer perfil do condomínio; cadastro, edição e exclusão exigem ADMIN.
+ */
 @Service
 public class CondominioService {
 
@@ -24,8 +31,10 @@ public class CondominioService {
     @Autowired private AreaComumRepository areaComumRepository;
 
     @Transactional
-    public Condominio cadastrarCondominio(CondominioDTO dados) {
-        // Regra RN-CON-002: Somente a Administradora XYZ cadastra novos condomínios
+    public Condominio cadastrarCondominio(CondominioDTO dados, UsuarioAutenticado auth) {
+        // Regra RN-CON-002: Somente a Administradora XYZ cadastra novos condomínios.
+        // Ainda não existe perfil de administradora; até lá, só ADMIN cadastra.
+        exigirAdmin(auth);
         var condominio = new Condominio();
         condominio.setNome(dados.nome());
         condominio.setCnpj(dados.cnpj());
@@ -35,47 +44,39 @@ public class CondominioService {
     }
 
     @Transactional
-    public Torre cadastrarTorre(TorreDTO dados) {
-        var condominio = condominioRepository.findById(dados.condominioId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
-
+    public Torre cadastrarTorre(TorreDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
         var torre = new Torre();
         torre.setNome(dados.nome());
-        torre.setCondominio(condominio);
+        torre.setCondominio(buscarCondominioDoUsuario(auth));
         return torreRepository.save(torre);
     }
 
     @Transactional
-    public Apartamento cadastrarApartamento(ApartamentoDTO dados) {
-        var condominio = condominioRepository.findById(dados.condominioId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
-
+    public Apartamento cadastrarApartamento(ApartamentoDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
         var apartamento = new Apartamento();
         apartamento.setNumero(dados.numero());
         apartamento.setStatus(dados.status().toUpperCase());
-        apartamento.setCondominio(condominio);
+        apartamento.setCondominio(buscarCondominioDoUsuario(auth));
 
         if (dados.torreId() != null) {
-            var torre = torreRepository.findById(dados.torreId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
-            apartamento.setTorre(torre);
+            apartamento.setTorre(buscarTorreEntidade(dados.torreId(), auth));
         }
 
         return apartamentoRepository.save(apartamento);
     }
 
     @Transactional
-    public AreaComum cadastrarAreaComum(AreaComumDTO dados) {
-        var condominio = condominioRepository.findById(dados.condominioId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
-
+    public AreaComum cadastrarAreaComum(AreaComumDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
         var area = new AreaComum();
         area.setNome(dados.nome());
         area.setDescricao(dados.descricao());
         area.setRegras(dados.regras());
         area.setReservavel(dados.reservavel());
         area.setExigeAprovacao(dados.exigeAprovacao());
-        area.setCondominio(condominio);
+        area.setCondominio(buscarCondominioDoUsuario(auth));
 
         return areaComumRepository.save(area);
     }
@@ -85,19 +86,22 @@ public class CondominioService {
     // ---------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public List<Condominio> listarCondominios() {
-        return condominioRepository.findAll();
+    public List<Condominio> listarCondominios(UsuarioAutenticado auth) {
+        return List.of(buscarCondominioDoUsuario(auth));
     }
 
     @Transactional(readOnly = true)
-    public Condominio buscarCondominio(UUID id) {
-        return condominioRepository.findById(id)
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
+    public Condominio buscarCondominio(UUID id, UsuarioAutenticado auth) {
+        if (!id.equals(auth.getCondominioId())) {
+            throw new RecursoNaoEncontradoException("Condomínio não encontrado.");
+        }
+        return buscarCondominioDoUsuario(auth);
     }
 
     @Transactional
-    public Condominio atualizarCondominio(UUID id, CondominioDTO dados) {
-        var condominio = buscarCondominio(id);
+    public Condominio atualizarCondominio(UUID id, CondominioDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var condominio = buscarCondominio(id, auth);
 
         if (condominioRepository.existsByCnpjAndIdNot(dados.cnpj(), id)) {
             throw new ConflitoException("Já existe outro condomínio cadastrado com este CNPJ.");
@@ -110,8 +114,9 @@ public class CondominioService {
     }
 
     @Transactional
-    public void excluirCondominio(UUID id) {
-        var condominio = buscarCondominio(id);
+    public void excluirCondominio(UUID id, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var condominio = buscarCondominio(id, auth);
 
         if (torreRepository.existsByCondominioId(id)
                 || apartamentoRepository.existsByCondominioId(id)
@@ -128,29 +133,29 @@ public class CondominioService {
     // ---------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public List<TorreResponseDTO> listarTorres(UUID condominioId) {
-        var torres = condominioId != null
-                ? torreRepository.findByCondominioId(condominioId)
-                : torreRepository.findAll();
-        return torres.stream().map(TorreResponseDTO::from).toList();
+    public List<TorreResponseDTO> listarTorres(UsuarioAutenticado auth) {
+        return torreRepository.findByCondominioId(auth.getCondominioId()).stream()
+                .map(TorreResponseDTO::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public TorreResponseDTO buscarTorre(UUID id) {
-        return TorreResponseDTO.from(buscarTorreEntidade(id));
+    public TorreResponseDTO buscarTorre(UUID id, UsuarioAutenticado auth) {
+        return TorreResponseDTO.from(buscarTorreEntidade(id, auth));
     }
 
     @Transactional
-    public TorreResponseDTO atualizarTorre(UUID id, TorreDTO dados) {
-        var torre = buscarTorreEntidade(id);
+    public TorreResponseDTO atualizarTorre(UUID id, TorreDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var torre = buscarTorreEntidade(id, auth);
         // A torre não muda de condomínio: o condominioId do body é ignorado.
         torre.setNome(dados.nome());
         return TorreResponseDTO.from(torreRepository.save(torre));
     }
 
     @Transactional
-    public void excluirTorre(UUID id) {
-        var torre = buscarTorreEntidade(id);
+    public void excluirTorre(UUID id, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var torre = buscarTorreEntidade(id, auth);
 
         if (apartamentoRepository.existsByTorreId(id)) {
             throw new ConflitoException("Não é possível excluir a torre: existem apartamentos vinculados.");
@@ -164,51 +169,37 @@ public class CondominioService {
     // ---------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public List<ApartamentoResponseDTO> listarApartamentos(UUID condominioId, UUID torreId) {
-        List<Apartamento> apartamentos;
-        if (condominioId != null && torreId != null) {
-            apartamentos = apartamentoRepository.findByTorreIdAndCondominioId(torreId, condominioId);
-        } else if (torreId != null) {
-            apartamentos = apartamentoRepository.findByTorreId(torreId);
-        } else if (condominioId != null) {
-            apartamentos = apartamentoRepository.findByCondominioId(condominioId);
-        } else {
-            apartamentos = apartamentoRepository.findAll();
-        }
+    public List<ApartamentoResponseDTO> listarApartamentos(UUID torreId, UsuarioAutenticado auth) {
+        var apartamentos = torreId != null
+                ? apartamentoRepository.findByTorreIdAndCondominioId(torreId, auth.getCondominioId())
+                : apartamentoRepository.findByCondominioId(auth.getCondominioId());
         return apartamentos.stream().map(ApartamentoResponseDTO::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public ApartamentoResponseDTO buscarApartamento(UUID id) {
-        return ApartamentoResponseDTO.from(buscarApartamentoEntidade(id));
+    public ApartamentoResponseDTO buscarApartamento(UUID id, UsuarioAutenticado auth) {
+        return ApartamentoResponseDTO.from(buscarApartamentoEntidade(id, auth));
     }
 
     @Transactional
-    public ApartamentoResponseDTO atualizarApartamento(UUID id, ApartamentoDTO dados) {
-        var apartamento = buscarApartamentoEntidade(id);
+    public ApartamentoResponseDTO atualizarApartamento(UUID id, ApartamentoDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var apartamento = buscarApartamentoEntidade(id, auth);
 
         apartamento.setNumero(dados.numero());
         apartamento.setStatus(dados.status().toUpperCase());
 
         // O apartamento não muda de condomínio (condominioId do body é ignorado),
         // mas pode trocar de torre desde que ela pertença ao mesmo condomínio.
-        if (dados.torreId() != null) {
-            var torre = torreRepository.findById(dados.torreId())
-                    .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
-            if (!torre.getCondominio().getId().equals(apartamento.getCondominio().getId())) {
-                throw new IllegalArgumentException("A torre informada não pertence ao condomínio do apartamento.");
-            }
-            apartamento.setTorre(torre);
-        } else {
-            apartamento.setTorre(null);
-        }
+        apartamento.setTorre(dados.torreId() != null ? buscarTorreEntidade(dados.torreId(), auth) : null);
 
         return ApartamentoResponseDTO.from(apartamentoRepository.save(apartamento));
     }
 
     @Transactional
-    public void excluirApartamento(UUID id) {
-        excluir(apartamentoRepository, buscarApartamentoEntidade(id));
+    public void excluirApartamento(UUID id, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        excluir(apartamentoRepository, buscarApartamentoEntidade(id, auth));
     }
 
     // ---------------------------------------------------------------------
@@ -216,26 +207,22 @@ public class CondominioService {
     // ---------------------------------------------------------------------
 
     @Transactional(readOnly = true)
-    public List<AreaComumResponseDTO> listarAreasComuns(UUID condominioId, boolean apenasAtivas) {
-        List<AreaComum> areas;
-        if (condominioId != null) {
-            areas = apenasAtivas
-                    ? areaComumRepository.findByCondominioIdAndAtivoTrue(condominioId)
-                    : areaComumRepository.findByCondominioId(condominioId);
-        } else {
-            areas = apenasAtivas ? areaComumRepository.findByAtivoTrue() : areaComumRepository.findAll();
-        }
+    public List<AreaComumResponseDTO> listarAreasComuns(boolean apenasAtivas, UsuarioAutenticado auth) {
+        var areas = apenasAtivas
+                ? areaComumRepository.findByCondominioIdAndAtivoTrue(auth.getCondominioId())
+                : areaComumRepository.findByCondominioId(auth.getCondominioId());
         return areas.stream().map(AreaComumResponseDTO::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public AreaComumResponseDTO buscarAreaComum(UUID id) {
-        return AreaComumResponseDTO.from(buscarAreaComumEntidade(id));
+    public AreaComumResponseDTO buscarAreaComum(UUID id, UsuarioAutenticado auth) {
+        return AreaComumResponseDTO.from(buscarAreaComumEntidade(id, auth));
     }
 
     @Transactional
-    public AreaComumResponseDTO atualizarAreaComum(UUID id, AreaComumDTO dados) {
-        var area = buscarAreaComumEntidade(id);
+    public AreaComumResponseDTO atualizarAreaComum(UUID id, AreaComumDTO dados, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var area = buscarAreaComumEntidade(id, auth);
 
         // A área não muda de condomínio: o condominioId do body é ignorado.
         area.setNome(dados.nome());
@@ -248,8 +235,9 @@ public class CondominioService {
     }
 
     @Transactional
-    public AreaComumResponseDTO alterarStatusAreaComum(UUID id, boolean ativo) {
-        var area = buscarAreaComumEntidade(id);
+    public AreaComumResponseDTO alterarStatusAreaComum(UUID id, boolean ativo, UsuarioAutenticado auth) {
+        exigirAdmin(auth);
+        var area = buscarAreaComumEntidade(id, auth);
         area.setAtivo(ativo);
         return AreaComumResponseDTO.from(areaComumRepository.save(area));
     }
@@ -258,19 +246,31 @@ public class CondominioService {
     // Auxiliares
     // ---------------------------------------------------------------------
 
-    private AreaComum buscarAreaComumEntidade(UUID id) {
-        return areaComumRepository.findById(id)
+    private Condominio buscarCondominioDoUsuario(UsuarioAutenticado auth) {
+        return condominioRepository.findById(auth.getCondominioId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
+    }
+
+    private AreaComum buscarAreaComumEntidade(UUID id, UsuarioAutenticado auth) {
+        return areaComumRepository.findByIdAndCondominioId(id, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Área comum não encontrada."));
     }
 
-    private Torre buscarTorreEntidade(UUID id) {
-        return torreRepository.findById(id)
+    private Torre buscarTorreEntidade(UUID id, UsuarioAutenticado auth) {
+        return torreRepository.findByIdAndCondominioId(id, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
     }
 
-    private Apartamento buscarApartamentoEntidade(UUID id) {
-        return apartamentoRepository.findById(id)
+    private Apartamento buscarApartamentoEntidade(UUID id, UsuarioAutenticado auth) {
+        return apartamentoRepository.findByIdAndCondominioId(id, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Apartamento não encontrado."));
+    }
+
+    // Enquanto não há autorização por perfil no SecurityConfig, a estrutura do condomínio checa aqui
+    private void exigirAdmin(UsuarioAutenticado auth) {
+        if (!"ADMIN".equals(UsuarioService.normalizarPerfil(auth.getPerfil()))) {
+            throw new SecurityException("Apenas administradores podem alterar a estrutura do condomínio.");
+        }
     }
 
     /**
