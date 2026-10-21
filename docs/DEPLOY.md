@@ -22,7 +22,9 @@ Ordem: **Neon → Render → Vercel → voltar no Render para liberar o CORS**.
 
 ## 2. API no Render
 
-1. **New → Web Service**. Como o repositório é público, dá para usar **Public Git Repository** com a URL `https://github.com/ArthurFloro/condomais-backend`. Esse modo não faz deploy automático a cada push: use **Manual Deploy** ou um *deploy hook*. Para ter deploy automático, o dono do repositório precisa conectar a conta do GitHub dele no Render.
+1. **New → Web Service**. Como o repositório é público, dá para usar **Public Git Repository** com a URL `https://github.com/ArthurFloro/condomais-backend`. Esse modo não faz deploy automático a cada push (só **Manual Deploy** ou *deploy hook*); para ter deploy automático, o dono do repositório precisa conectar a conta do GitHub dele no Render.
+
+   > **Situação atual:** o serviço em produção está com **Auto-Deploy** ligado. Todo merge na `main` vai para produção sozinho. Por isso, variável de ambiente nova precisa ser criada no Render **antes** do merge, e o SQL de `docs/sql/` precisa rodar no Neon logo depois.
 2. Configuração:
    - **Language:** Docker (o Render detecta o `Dockerfile`);
    - **Branch:** `main`;

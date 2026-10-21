@@ -60,12 +60,13 @@ There is no per-request tenant header — the condomínio is derived from the au
    auth.getCondominioId();  // tenant id
    ```
    See `VisitaController`, `ChamadoController`, `AvisoController`, `ReservaController`, `EncomendaController` for the pattern — it's duplicated per controller rather than centralized. Follow the existing convention when adding a new authenticated write endpoint rather than introducing a new extraction mechanism.
-4. `SecurityConfig` permits `/auth/login`, `/auth`, and the Swagger routes without auth; everything else requires an authenticated principal. There are no role-based (`hasRole`) restrictions yet — `perfil` is available as a `ROLE_<PERFIL>` authority but nothing currently enforces it at the security-config level.
+4. `SecurityConfig` permits `/auth/login`, `/auth`, and the Swagger routes without auth; everything else requires an authenticated principal. There are no role-based (`hasRole`) restrictions yet — `perfil` is available as a `ROLE_<PERFIL>` authority but nothing enforces it at the security-config level. Services check it instead with a private `exigirAdmin(auth)` (see `UsuarioService`, `CondominioService`), normalizing legacy values with `UsuarioService.normalizarPerfil`.
 
 5. CORS is configured in `SecurityConfig` for the front-end (repo `haveso27/condo_mais`, Vite dev server on port 5173). Allowed origins come from `api.cors.allowed-origins` (comma-separated), defaulting to `http://localhost:5173,http://127.0.0.1:5173`. No credentials/cookies — the token travels in the `Authorization` header.
 
 ### Condomínio module conventions (the most actively developed part)
 
+- Everything is scoped to the caller's condomínio: every `CondominioService` method takes the `UsuarioAutenticado`, lookups use `findByIdAndCondominioId` (another tenant's record is a 404, as if it didn't exist), and any `condominioId` sent by the client (query or body) is ignored. Reads are open to every perfil of the condomínio; create/edit/delete/(de)activate require ADMIN.
 - `Condominio` and `Torre` are still returned as raw JPA entities from some endpoints; `Apartamento`, `Torre`, and `AreaComum` GET endpoints were migrated to `*ResponseDTO` records with a static `from(entity)` mapper — follow that pattern for new read endpoints instead of exposing entities directly.
 - Ownership is fixed at creation time: PUT endpoints on `Torre`/`Apartamento`/`AreaComum` ignore any `condominioId` in the request body — the entity's condomínio never changes after creation. `Apartamento` can be reassigned between towers, but only within the same condomínio (validated in `CondominioService.atualizarApartamento`).
 - Deletes are guarded against orphaning child records: `CondominioService.excluir(repository, entidade)` does `delete` + `flush` so FK violations from other modules surface as a caught `DataIntegrityViolationException` immediately, rather than at commit time. Reuse this helper for new delete endpoints in this module.
@@ -90,13 +91,12 @@ Both custom exceptions extend `IllegalArgumentException`. Bare `orElseThrow()` b
 - Commit messages in Brazilian Portuguese, with conventional-commit prefixes kept in English (`feat:`, `fix:`, `docs:`, `chore:`), as in the existing history.
 - Work on a branch and open a PR to `main`; never push straight to `main`.
 - Front-end: repo `haveso27/condo_mais` (React/Vite/pnpm). Contributors push branches straight to it (no fork). Login is by CPF on both sides, sent formatted (`000.000.000-00`). To edit it from a backend session, add its local clone with `/add-dir`.
-- Production: front on Vercel (`https://condo-mais.vercel.app`, published from a fork that needs "Sync fork" after each merge to the original repo), API on Render (`https://condomais-backend.onrender.com`, **no auto-deploy**: "Manual Deploy → Deploy latest commit" after each merge; health check `/v3/api-docs`), database on Neon. When a PR changes the model, its SQL in `docs/sql/` must be run by hand in Neon's SQL Editor. Details in `docs/DEPLOY.md`.
+- Production: front on Vercel (`https://condo-mais.vercel.app`, published from a fork that needs "Sync fork" after each merge to the original repo), API on Render (`https://condomais-backend.onrender.com`, **auto-deploy on every merge to `main`**, so a merge is a production release; health check `/v3/api-docs`), database on Neon. A new env var must be set on Render **before** merging the PR that needs it. When a PR changes the model, its SQL in `docs/sql/` must be run by hand in Neon's SQL Editor right after the merge. Details in `docs/DEPLOY.md`.
 
 ## Known gaps (agreed backlog, in priority order)
 
-1. Tenant scoping on the server: `/condominios/*` listings accept a `condominioId` query param without checking it against the token (cross-tenant leak). Fix this first.
-2. Front route guard: no session or expired token should redirect to login.
-3. Wire the operational modules into the front (avisos, encomendas, visitantes, reservas, chamados): in API mode they are empty and new records stay in memory only.
-4. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
-5. A unit without a tower can't receive a resident through the form.
-6. Password recovery (no endpoint yet).
+1. Front route guard: no session or expired token should redirect to login.
+2. Wire the operational modules into the front (avisos, encomendas, visitantes, reservas, chamados): in API mode they are empty and new records stay in memory only.
+3. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
+4. A unit without a tower can't receive a resident through the form.
+5. Password recovery (no endpoint yet).

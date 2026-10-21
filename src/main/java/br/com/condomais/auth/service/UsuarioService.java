@@ -145,7 +145,7 @@ public class UsuarioService {
     }
 
     // Aceita variações já existentes no banco (Admin, Administrador, Portaria, Porteiro...)
-    static String normalizarPerfil(String perfil) {
+    public static String normalizarPerfil(String perfil) {
         if (perfil == null) return "";
         var semAcento = Normalizer.normalize(perfil, Normalizer.Form.NFD).replaceAll("\\p{M}", "").trim().toUpperCase();
         return switch (semAcento) {
