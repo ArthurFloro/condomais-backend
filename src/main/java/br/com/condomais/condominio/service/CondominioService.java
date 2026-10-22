@@ -13,14 +13,14 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
 
 /**
  * Estrutura do condomínio. Tudo é escopado pelo condomínio do token: um registro de outro condomínio
  * responde 404, como se não existisse, e o condominioId enviado pelo cliente é ignorado. Leitura é
- * liberada para qualquer perfil do condomínio; cadastro, edição e exclusão exigem ADMIN.
+ * liberada para qualquer perfil do condomínio; cadastro, edição e exclusão exigem ADMIN. O condomínio em si
+ * (cadastro, nome, CNPJ, ativação) é gerido só pelo MASTER, em PlataformaService.
  */
 @Service
 public class CondominioService {
@@ -29,19 +29,6 @@ public class CondominioService {
     @Autowired private TorreRepository torreRepository;
     @Autowired private ApartamentoRepository apartamentoRepository;
     @Autowired private AreaComumRepository areaComumRepository;
-
-    @Transactional
-    public Condominio cadastrarCondominio(CondominioDTO dados, UsuarioAutenticado auth) {
-        // Regra RN-CON-002: Somente a Administradora XYZ cadastra novos condomínios.
-        // Ainda não existe perfil de administradora; até lá, só ADMIN cadastra.
-        exigirAdmin(auth);
-        var condominio = new Condominio();
-        condominio.setNome(dados.nome());
-        condominio.setCnpj(dados.cnpj());
-        condominio.setStatus(dados.status().toUpperCase());
-        condominio.setCreatedAt(LocalDateTime.now());
-        return condominioRepository.save(condominio);
-    }
 
     @Transactional
     public Torre cadastrarTorre(TorreDTO dados, UsuarioAutenticado auth) {
@@ -96,36 +83,6 @@ public class CondominioService {
             throw new RecursoNaoEncontradoException("Condomínio não encontrado.");
         }
         return buscarCondominioDoUsuario(auth);
-    }
-
-    @Transactional
-    public Condominio atualizarCondominio(UUID id, CondominioDTO dados, UsuarioAutenticado auth) {
-        exigirAdmin(auth);
-        var condominio = buscarCondominio(id, auth);
-
-        if (condominioRepository.existsByCnpjAndIdNot(dados.cnpj(), id)) {
-            throw new ConflitoException("Já existe outro condomínio cadastrado com este CNPJ.");
-        }
-
-        condominio.setNome(dados.nome());
-        condominio.setCnpj(dados.cnpj());
-        condominio.setStatus(dados.status().toUpperCase());
-        return condominioRepository.save(condominio);
-    }
-
-    @Transactional
-    public void excluirCondominio(UUID id, UsuarioAutenticado auth) {
-        exigirAdmin(auth);
-        var condominio = buscarCondominio(id, auth);
-
-        if (torreRepository.existsByCondominioId(id)
-                || apartamentoRepository.existsByCondominioId(id)
-                || areaComumRepository.existsByCondominioId(id)) {
-            throw new ConflitoException(
-                    "Não é possível excluir o condomínio: existem torres, apartamentos ou áreas comuns vinculados.");
-        }
-
-        excluir(condominioRepository, condominio);
     }
 
     // ---------------------------------------------------------------------

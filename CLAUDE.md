@@ -38,12 +38,13 @@ Production runs the `prod` profile (`application-prod.properties`): every sensit
 
 Spring Boot 4.1 / Java 17 REST API for **Condo+**, a multi-tenant condominium management system (one deployment serves many condomínios). Code is organized by business module under `br.com.condomais`, each following the same `controller / service / repository / model / dto` layout:
 
-- `auth` — `Usuario` (users, one per condomínio, with a `perfil` role: `ADMIN`/`PORTARIA`/`MORADOR`), CPF+senha login, first-access password creation, and the admin-only `/usuarios` CRUD (`UsuarioService`): users are pre-registered without a password (`senha` NULL until `/auth/primeiro-acesso`), MORADOR links to an `Apartamento` with `vinculo` PROPRIETARIO/INQUILINO, `status` INATIVO blocks login and invalidates live tokens. CPF is stored formatted (`000.000.000-00`, check digits validated) because login compares it verbatim.
+- `auth` — `Usuario` (users, one per condomínio, with a `perfil` role: `ADMIN`/`PORTARIA`/`MORADOR`, plus `MASTER` — see `plataforma`), CPF+senha login, first-access password creation, and the admin-only `/usuarios` CRUD (`UsuarioService`): users are pre-registered without a password (`senha` NULL until `/auth/primeiro-acesso`), MORADOR links to an `Apartamento` with `vinculo` PROPRIETARIO/INQUILINO, `status` INATIVO blocks login and invalidates live tokens. CPF is stored formatted (`000.000.000-00`, check digits validated) because login compares it verbatim.
 - `condominio` — **Módulo 2**: `Condominio` → `Torre` (optional) → `Apartamento`, plus `AreaComum`. This is the structural/tenant backbone every other module hangs off of.
 - `portaria` — **Módulo 3**: visitantes, `Visita` (entrada/saída), `Encomenda`.
 - `interativo` — **Módulo 4**: `Aviso` (announcements) and `Reserva` (common-area booking engine).
 - `atendimento` — **Módulo 5**: `Chamado` (support tickets), `CategoriaChamado`, `HistoricoChamado`.
 - `assistente` — assistente virtual do morador (`POST /assistente/mensagens`, só `MORADOR`). **Este serviço não fala com a IA**: `AssistenteService` é um cliente HTTP (`RestClient`) que repassa a conversa, com o mesmo `Authorization` do morador, ao serviço Python `condomais-assistente` (repo `ArthurFloro/condomais-assistente`), configurado por `ASSISTENTE_API_URL` (sem ela, 503). O serviço Python valida o mesmo JWT (`JWT_SECRET` idêntico nos dois) e consulta o banco por views somente leitura. Erros 400/403/429/503 dele voltam com a mesma semântica; qualquer outro vira 503 genérico (e 401 de lá significa segredo diferente entre os serviços). Prompt, ferramentas e modelo ficam todos no repo Python — não reintroduza SDK de IA aqui.
+- `plataforma` — area of the `MASTER` perfil (the Condo+ owners, the only users with `condominio_id` NULL, enforced by a DB `CHECK`): `/plataforma/condominios` creates a condomínio together with its first ADMIN (no password), edits nome/CNPJ (only MASTER can), activates/deactivates it and swaps its ADMIN (previous admins become INATIVO). MASTER never sees a condomínio's internal data. A deactivated condomínio (`status` INATIVO) blocks login and live tokens of all its users (`UsuarioAutenticado.isEnabled`). The first MASTER is seeded by SQL (`docs/sql/deploy/03-primeiro-master.sql`). There is no `POST/PUT/DELETE /condominios` for ADMIN anymore.
 - `core.security` — JWT auth plumbing (see below).
 - `core.config` — `SwaggerConfig` (springdoc OpenAPI, bearer auth scheme).
 
@@ -51,7 +52,7 @@ Spring Boot 4.1 / Java 17 REST API for **Condo+**, a multi-tenant condominium ma
 
 There is no per-request tenant header — the condomínio is derived from the authenticated user:
 
-1. `AuthController.login` authenticates via CPF/senha (`AutenticacaoService` is the `UserDetailsService`, wraps `Usuario` in `UsuarioAutenticado`), then `TokenService.gerarToken` issues a JWT carrying `id`, `perfil`, and `condominio_id` claims.
+1. `AuthController.login` authenticates via CPF/senha (`AutenticacaoService` is the `UserDetailsService`, wraps `Usuario` in `UsuarioAutenticado`), then `TokenService.gerarToken` issues a JWT carrying `id`, `perfil`, and `condominio_id` claims (no `condominio_id` for MASTER).
 2. `SecurityFilter` (a `OncePerRequestFilter`) reads the bearer token on every request, looks the user back up by CPF (the JWT subject), and puts a `UsuarioAutenticado` into `SecurityContextHolder`.
 3. Controllers that need to scope a write to the caller's condomínio/user pull it back out with a local helper, e.g.:
    ```java
@@ -60,7 +61,7 @@ There is no per-request tenant header — the condomínio is derived from the au
    auth.getCondominioId();  // tenant id
    ```
    See `VisitaController`, `ChamadoController`, `AvisoController`, `ReservaController`, `EncomendaController` for the pattern — it's duplicated per controller rather than centralized. Follow the existing convention when adding a new authenticated write endpoint rather than introducing a new extraction mechanism.
-4. `SecurityConfig` permits `/auth/login`, `/auth`, and the Swagger routes without auth; everything else requires an authenticated principal. There are no role-based (`hasRole`) restrictions yet — `perfil` is available as a `ROLE_<PERFIL>` authority but nothing enforces it at the security-config level. Services check it instead with a private `exigirAdmin(auth)` (see `UsuarioService`, `CondominioService`), normalizing legacy values with `UsuarioService.normalizarPerfil`.
+4. `SecurityConfig` permits `/auth/login`, `/auth/primeiro-acesso`, and the Swagger routes without auth. `/plataforma/**` is `hasRole("MASTER")`, `/usuarios/me` is any authenticated user, and everything else requires an authenticated principal that is **not** MASTER (it has no condomínio). Authorities are `ROLE_<normalized perfil>`, so legacy values like "Administrador" count as ADMIN. Denied access answers 403 in the `ErroResponseDTO` shape. Finer rules (ADMIN vs PORTARIA vs MORADOR) are not in the security config: services check them with a private `exigirAdmin(auth)` (see `UsuarioService`, `CondominioService`), normalizing legacy values with `UsuarioService.normalizarPerfil`.
 
 5. CORS is configured in `SecurityConfig` for the front-end (repo `haveso27/condo_mais`, Vite dev server on port 5173). Allowed origins come from `api.cors.allowed-origins` (comma-separated), defaulting to `http://localhost:5173,http://127.0.0.1:5173`. No credentials/cookies — the token travels in the `Authorization` header.
 

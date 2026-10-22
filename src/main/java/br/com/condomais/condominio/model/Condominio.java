@@ -34,4 +34,9 @@ public class Condominio {
 
     @Column(name = "created_at")
     private LocalDateTime createdAt;
+
+    // Desativado pelo MASTER: nenhum usuário do condomínio consegue logar (os dados ficam)
+    public boolean isAtivo() {
+        return !"INATIVO".equalsIgnoreCase(status);
+    }
 }
