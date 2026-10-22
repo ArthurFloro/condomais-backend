@@ -70,7 +70,7 @@ BEGIN;
         id uuid not null,
         estado varchar(2),
         cnpj varchar(18) not null unique,
-        configuracao_inicial varchar(20) not null,
+        configuracao_inicial varchar(20) default 'CONCLUIDA' not null,
         status varchar(50) not null,
         cidade varchar(100),
         endereco varchar(255),

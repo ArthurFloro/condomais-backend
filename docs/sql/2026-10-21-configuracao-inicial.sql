@@ -1,6 +1,6 @@
 -- Setup Wizard: estado da configuração inicial, endereço do condomínio e unicidade de torres e unidades.
--- Rode no banco ANTES de subir a versão que traz POST /condominios/configuracao-inicial
--- (spring.jpa.hibernate.ddl-auto=validate exige as colunas novas).
+-- Rode no banco ANTES do merge da versão que traz POST /condominios/configuracao-inicial: com
+-- spring.jpa.hibernate.ddl-auto=validate, a versão nova não sobe sem as colunas. É compatível com a anterior.
 
 -- 1) Condomínio: endereço e estado da configuração. Os condomínios que já existem foram montados à mão,
 --    então entram como CONCLUIDA. Para um deles passar pelo wizard, troque para PENDENTE.
@@ -8,8 +8,8 @@ ALTER TABLE condominios ADD COLUMN IF NOT EXISTS endereco varchar(255);
 ALTER TABLE condominios ADD COLUMN IF NOT EXISTS cidade varchar(100);
 ALTER TABLE condominios ADD COLUMN IF NOT EXISTS estado varchar(2);
 ALTER TABLE condominios ADD COLUMN IF NOT EXISTS configuracao_inicial varchar(20) NOT NULL DEFAULT 'CONCLUIDA';
--- Daqui em diante quem insere informa o valor (a API grava PENDENTE ao cadastrar pelo MASTER)
-ALTER TABLE condominios ALTER COLUMN configuracao_inicial DROP DEFAULT;
+-- O DEFAULT fica: a versão anterior da API, que ainda não conhece a coluna, continua conseguindo cadastrar
+-- condomínios entre esta migração e o deploy. A versão nova sempre grava o valor (PENDENTE pelo MASTER).
 
 -- 2) Unicidade. Se algum CREATE falhar, já há duplicatas: liste-as com as consultas abaixo e corrija antes.
 --    SELECT condominio_id, lower(nome), count(*) FROM torres GROUP BY 1, 2 HAVING count(*) > 1;
