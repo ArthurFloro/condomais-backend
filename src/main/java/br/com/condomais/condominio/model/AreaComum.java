@@ -33,6 +33,9 @@ public class AreaComum {
     @Column(nullable = false)
     private Boolean ativo = true;
 
+    // Capacidade máxima de pessoas; opcional (§6.4 da especificação)
+    private Integer capacidade;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "condominio_id", nullable = false)
     private Condominio condominio;

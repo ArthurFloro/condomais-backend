@@ -2,6 +2,7 @@ package br.com.condomais.condominio.service;
 
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.condominio.dto.ApartamentoDTO;
+import br.com.condomais.condominio.dto.AreaComumDTO;
 import br.com.condomais.condominio.dto.TorreDTO;
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.AreaComum;
@@ -152,7 +153,7 @@ class CondominioServiceTest {
         when(torreRepository.findByIdAndCondominioId(torreDeOutro, condominio.getId())).thenReturn(Optional.empty());
 
         assertThrows(RecursoNaoEncontradoException.class,
-                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "ocupado", torreDeOutro, null), admin));
+                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "ocupado", torreDeOutro, null, null), admin));
         verify(apartamentoRepository, never()).save(any());
     }
 
@@ -166,7 +167,7 @@ class CondominioServiceTest {
         when(torreRepository.findByIdAndCondominioId(torreDeOutro, condominio.getId())).thenReturn(Optional.empty());
 
         assertThrows(RecursoNaoEncontradoException.class,
-                () -> service.atualizarApartamento(apartamento.getId(), new ApartamentoDTO("102", "vago", torreDeOutro, null), admin));
+                () -> service.atualizarApartamento(apartamento.getId(), new ApartamentoDTO("102", "vago", torreDeOutro, null, null), admin));
         verify(apartamentoRepository, never()).save(any());
     }
 
@@ -225,7 +226,7 @@ class CondominioServiceTest {
         when(apartamentoRepository.existsByTorreIdAndNumero(torre.getId(), "101")).thenReturn(true);
 
         assertThrows(ConflitoException.class,
-                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", torre.getId(), null), admin));
+                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", torre.getId(), null, null), admin));
         verify(apartamentoRepository, never()).save(any());
     }
 
@@ -235,6 +236,16 @@ class CondominioServiceTest {
         when(apartamentoRepository.existsByCondominioIdAndTorreIsNullAndNumero(condominio.getId(), "101")).thenReturn(true);
 
         assertThrows(ConflitoException.class,
-                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", null, null), admin));
+                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", null, null, null), admin));
+    }
+
+    @Test
+    void andarECapacidadeInvalidosSaoRecusadosNoCadastroManual() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", null, null, -1), admin));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.cadastrarAreaComum(new AreaComumDTO("Quadra", null, null, true, false, null, 0), admin));
+        verify(apartamentoRepository, never()).save(any());
+        verify(areaComumRepository, never()).save(any());
     }
 }

@@ -9,7 +9,8 @@ public record ApartamentoResponseDTO(
         String numero,
         String status,
         UUID torreId,
-        UUID condominioId
+        UUID condominioId,
+        Integer andar
 ) {
     public static ApartamentoResponseDTO from(Apartamento apartamento) {
         return new ApartamentoResponseDTO(
@@ -17,7 +18,8 @@ public record ApartamentoResponseDTO(
                 apartamento.getNumero(),
                 apartamento.getStatus(),
                 apartamento.getTorre() != null ? apartamento.getTorre().getId() : null,
-                apartamento.getCondominio().getId()
+                apartamento.getCondominio().getId(),
+                apartamento.getAndar()
         );
     }
 }

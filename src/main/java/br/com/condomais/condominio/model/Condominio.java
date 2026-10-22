@@ -45,6 +45,12 @@ public class Condominio {
     @Column(length = 2)
     private String estado; // UF
 
+    // VERTICAL (torres), HORIZONTAL (ruas, gravadas como torres) ou EDIFICIO (unidades sem torre); o front usa
+    // para nomear a estrutura. Definido no Setup Wizard; os condomínios antigos são verticais.
+    @Column(nullable = false, length = 20)
+    @ColumnDefault("'VERTICAL'")
+    private String modelo = "VERTICAL";
+
     // PENDENTE ao ser cadastrado pelo MASTER; CONCLUIDA depois do Setup Wizard (POST /condominios/configuracao-inicial).
     // O @ColumnDefault é para o ddl-auto=update local conseguir criar a coluna numa tabela com linhas
     // (as que já existem contam como configuradas, como na migração 2026-10-21-configuracao-inicial.sql)

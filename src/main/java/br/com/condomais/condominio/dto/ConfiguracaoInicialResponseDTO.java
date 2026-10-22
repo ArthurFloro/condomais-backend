@@ -6,7 +6,8 @@ import java.util.UUID;
 public record ConfiguracaoInicialResponseDTO(
         UUID condominioId,
         String configuracaoInicial,
-        int torres,
+        String modelo,
+        int torres,        // torres no VERTICAL, ruas no HORIZONTAL, 0 no EDIFICIO
         int unidades,
         int areasComuns
 ) {}

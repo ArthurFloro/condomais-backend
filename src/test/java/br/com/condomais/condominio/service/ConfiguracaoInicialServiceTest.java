@@ -73,14 +73,14 @@ class ConfiguracaoInicialServiceTest {
     }
 
     private static ConfiguracaoInicialDTO dados(List<ConfiguracaoInicialDTO.Torre> torres, List<ConfiguracaoInicialDTO.AreaComum> areas) {
-        return new ConfiguracaoInicialDTO("VERTICAL", "Rua das Flores, 100", "Recife", "pe", torres, areas);
+        return new ConfiguracaoInicialDTO("VERTICAL", "Rua das Flores, 100", "Recife", "pe", torres, null, null, areas);
     }
 
     @Test
     void geraAsUnidadesDoExemploDaEspecificacaoEConclui() {
         // 3 torres x 10 andares x 4 por andar = 120 unidades (§5.2 da especificação)
         var torres = List.of(torre("A", 10, 4, 2, ""), torre("B", 10, 4, 2, ""), torre("C", 10, 4, 2, ""));
-        var areas = List.of(new ConfiguracaoInicialDTO.AreaComum("Piscina", null, false, false));
+        var areas = List.of(new ConfiguracaoInicialDTO.AreaComum("Piscina", null, false, false, null));
 
         var resposta = service.configurar(dados(torres, areas), admin);
 
@@ -156,25 +156,101 @@ class ConfiguracaoInicialServiceTest {
 
     @Test
     void enderecoEUfSaoObrigatorios() {
-        var semEndereco = new ConfiguracaoInicialDTO("VERTICAL", " ", "Recife", "PE", List.of(torre("A", 1, 1, 2, "")), null);
-        var ufInvalida = new ConfiguracaoInicialDTO("VERTICAL", "Rua X", "Recife", "XX", List.of(torre("A", 1, 1, 2, "")), null);
+        var semEndereco = new ConfiguracaoInicialDTO("VERTICAL", " ", "Recife", "PE", List.of(torre("A", 1, 1, 2, "")), null, null, null);
+        var ufInvalida = new ConfiguracaoInicialDTO("VERTICAL", "Rua X", "Recife", "XX", List.of(torre("A", 1, 1, 2, "")), null, null, null);
 
         assertThrows(IllegalArgumentException.class, () -> service.configurar(semEndereco, admin));
         assertThrows(IllegalArgumentException.class, () -> service.configurar(ufInvalida, admin));
     }
 
     @Test
-    void outrosModelosAindaNaoEstaoDisponiveis() {
-        var horizontal = new ConfiguracaoInicialDTO("HORIZONTAL", "Rua X", "Recife", "PE", List.of(torre("Rua A", 1, 1, 2, "")), null);
+    void modeloInvalidoOuEstruturaDeOutroModeloSaoRecusados() {
+        var invalido = new ConfiguracaoInicialDTO("COMERCIAL", "Rua X", "Recife", "PE", List.of(torre("A", 1, 1, 2, "")), null, null, null);
+        var misturado = new ConfiguracaoInicialDTO("VERTICAL", "Rua X", "Recife", "PE", List.of(torre("A", 1, 1, 2, "")),
+                List.of(new ConfiguracaoInicialDTO.Rua("Rua A", 2, 1, 2)), null, null);
 
-        assertThrows(IllegalArgumentException.class, () -> service.configurar(horizontal, admin));
+        assertThrows(IllegalArgumentException.class, () -> service.configurar(invalido, admin));
+        assertThrows(IllegalArgumentException.class, () -> service.configurar(misturado, admin));
+        verify(apartamentoRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void verticalGravaOAndarDeCadaUnidade() {
+        service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 1, 3, 1, 2, "")), null), admin);
+
+        assertEquals(List.of(3, 4), unidadesGravadas.stream().map(Apartamento::getAndar).toList());
+        assertEquals("VERTICAL", condominio.getModelo());
+    }
+
+    @Test
+    void horizontalGeraCasasNumeradasPorRuaSemAndar() {
+        var ruas = List.of(new ConfiguracaoInicialDTO.Rua("Rua A", 3, 1, 2), new ConfiguracaoInicialDTO.Rua("Rua B", 2, 1, 2));
+        var horizontal = new ConfiguracaoInicialDTO("HORIZONTAL", "Estrada X", "Recife", "PE", null, ruas, null, null);
+
+        var resposta = service.configurar(horizontal, admin);
+
+        assertEquals("HORIZONTAL", resposta.modelo());
+        assertEquals(2, resposta.torres());
+        assertEquals(5, resposta.unidades());
+        assertEquals("HORIZONTAL", condominio.getModelo());
+        assertEquals(List.of("01", "02", "03", "01", "02"), unidadesGravadas.stream().map(Apartamento::getNumero).toList());
+        assertTrue(unidadesGravadas.stream().allMatch(a -> a.getAndar() == null && a.getTorre() != null));
+        assertEquals("Rua A", unidadesGravadas.get(0).getTorre().getNome());
+        verify(torreRepository, times(2)).save(any());
+    }
+
+    @Test
+    void ruaRepetidaEhRecusada() {
+        var ruas = List.of(new ConfiguracaoInicialDTO.Rua("Rua A", 1, 1, 2), new ConfiguracaoInicialDTO.Rua("rua a", 1, 1, 2));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.configurar(new ConfiguracaoInicialDTO("HORIZONTAL", "Estrada X", "Recife", "PE", null, ruas, null, null), admin));
+    }
+
+    @Test
+    void edificioGeraUnidadesPorAndarSemTorre() {
+        var edificio = new ConfiguracaoInicialDTO.Edificio(2, 2, 1, 1, 2, "");
+        var dados = new ConfiguracaoInicialDTO("EDIFICIO", "Rua Y, 10", "Recife", "PE", null, null, edificio, null);
+
+        var resposta = service.configurar(dados, admin);
+
+        assertEquals(0, resposta.torres());
+        assertEquals(4, resposta.unidades());
+        assertEquals("EDIFICIO", condominio.getModelo());
+        assertEquals(List.of("101", "102", "201", "202"), unidadesGravadas.stream().map(Apartamento::getNumero).toList());
+        assertTrue(unidadesGravadas.stream().allMatch(a -> a.getTorre() == null && a.getAndar() != null));
+        verify(torreRepository, never()).save(any());
+    }
+
+    @Test
+    void edificioSemEstruturaEhRecusado() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.configurar(new ConfiguracaoInicialDTO("EDIFICIO", "Rua Y", "Recife", "PE", null, null, null, null), admin));
+    }
+
+    @Test
+    void capacidadeDaAreaEhOpcionalMasPositiva() {
+        var areas = List.of(new ConfiguracaoInicialDTO.AreaComum("Espaço de convivência", null, true, false, 30),
+                new ConfiguracaoInicialDTO.AreaComum("Piscina", null, false, false, null));
+
+        service.configurar(dados(List.of(torre("A", 1, 1, 2, "")), areas), admin);
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<AreaComum>> gravadas = ArgumentCaptor.forClass(List.class);
+        verify(areaComumRepository).saveAll(gravadas.capture());
+        assertEquals(30, gravadas.getValue().get(0).getCapacidade());
+        assertNull(gravadas.getValue().get(1).getCapacidade());
+
+        var invalida = List.of(new ConfiguracaoInicialDTO.AreaComum("Quadra", null, true, false, 0));
+        condominio.setConfiguracaoInicial("PENDENTE");
+        assertThrows(IllegalArgumentException.class, () -> service.configurar(dados(List.of(torre("B", 1, 1, 2, "")), invalida), admin));
     }
 
     @Test
     void areasRespeitamOQueOAdminEscolheu() {
         var areas = List.of(
-                new ConfiguracaoInicialDTO.AreaComum("Salão de festas", "Até 22h", true, true),
-                new ConfiguracaoInicialDTO.AreaComum("Playground", null, null, null));
+                new ConfiguracaoInicialDTO.AreaComum("Salão de festas", "Até 22h", true, true, null),
+                new ConfiguracaoInicialDTO.AreaComum("Playground", null, null, null, null));
 
         service.configurar(dados(List.of(torre("A", 1, 1, 2, "")), areas), admin);
 
@@ -191,8 +267,8 @@ class ConfiguracaoInicialServiceTest {
 
     @Test
     void areaRepetidaNoEnvioEhRecusada() {
-        var areas = List.of(new ConfiguracaoInicialDTO.AreaComum("Piscina", null, false, false),
-                new ConfiguracaoInicialDTO.AreaComum("piscina", null, false, false));
+        var areas = List.of(new ConfiguracaoInicialDTO.AreaComum("Piscina", null, false, false, null),
+                new ConfiguracaoInicialDTO.AreaComum("piscina", null, false, false, null));
 
         assertThrows(IllegalArgumentException.class,
                 () -> service.configurar(dados(List.of(torre("A", 1, 1, 2, "")), areas), admin));

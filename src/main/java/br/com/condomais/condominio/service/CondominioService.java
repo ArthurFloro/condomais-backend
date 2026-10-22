@@ -47,6 +47,7 @@ public class CondominioService {
         exigirAdmin(auth);
         var apartamento = new Apartamento();
         apartamento.setNumero(dados.numero());
+        apartamento.setAndar(validarAndar(dados.andar()));
         apartamento.setStatus(dados.status().toUpperCase());
         apartamento.setCondominio(buscarCondominioDoUsuario(auth));
 
@@ -67,6 +68,7 @@ public class CondominioService {
         area.setRegras(dados.regras());
         area.setReservavel(dados.reservavel());
         area.setExigeAprovacao(dados.exigeAprovacao());
+        area.setCapacidade(validarCapacidade(dados.capacidade()));
         area.setCondominio(buscarCondominioDoUsuario(auth));
 
         return areaComumRepository.save(area);
@@ -151,6 +153,7 @@ public class CondominioService {
         var apartamento = buscarApartamentoEntidade(id, auth);
 
         apartamento.setNumero(dados.numero());
+        apartamento.setAndar(validarAndar(dados.andar()));
         apartamento.setStatus(dados.status().toUpperCase());
 
         // O apartamento não muda de condomínio (condominioId do body é ignorado),
@@ -195,6 +198,7 @@ public class CondominioService {
         area.setRegras(dados.regras());
         area.setReservavel(dados.reservavel());
         area.setExigeAprovacao(dados.exigeAprovacao());
+        area.setCapacidade(validarCapacidade(dados.capacidade()));
 
         return AreaComumResponseDTO.from(areaComumRepository.save(area));
     }
@@ -229,6 +233,22 @@ public class CondominioService {
     private Apartamento buscarApartamentoEntidade(UUID id, UsuarioAutenticado auth) {
         return apartamentoRepository.findByIdAndCondominioId(id, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Apartamento não encontrado."));
+    }
+
+    // Capacidade é opcional; quando vem, é um número de pessoas (o Setup Wizard usa a mesma regra)
+    static Integer validarCapacidade(Integer capacidade) {
+        if (capacidade != null && (capacidade < 1 || capacidade > 100_000)) {
+            throw new IllegalArgumentException("A capacidade da área comum deve ser um número positivo de pessoas.");
+        }
+        return capacidade;
+    }
+
+    // Andar é opcional; 0 vale para o térreo
+    private static Integer validarAndar(Integer andar) {
+        if (andar != null && (andar < 0 || andar > 999)) {
+            throw new IllegalArgumentException("O andar deve ser um número entre 0 e 999.");
+        }
+        return andar;
     }
 
     // Número único na torre; sem torre (edifício pequeno), único entre as unidades sem torre do condomínio.

@@ -5,6 +5,7 @@
 BEGIN;
 
     create table apartamentos (
+        andar integer,
         condominio_id uuid not null,
         id uuid not null,
         torre_id uuid,
@@ -15,6 +16,7 @@ BEGIN;
 
     create table areas_comuns (
         ativo boolean not null,
+        capacidade integer,
         exige_aprovacao boolean not null,
         reservavel boolean not null,
         condominio_id uuid not null,
@@ -71,6 +73,7 @@ BEGIN;
         estado varchar(2),
         cnpj varchar(18) not null unique,
         configuracao_inicial varchar(20) default 'CONCLUIDA' not null,
+        modelo varchar(20) default 'VERTICAL' not null,
         status varchar(50) not null,
         cidade varchar(100),
         endereco varchar(255),
