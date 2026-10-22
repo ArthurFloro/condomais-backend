@@ -17,6 +17,7 @@ Ordem: **Neon → Render → Vercel → voltar no Render para liberar o CORS**.
 3. Em **SQL Editor**, rode nesta ordem:
    1. `docs/sql/deploy/01-schema.sql`: cria as 14 tabelas;
    2. `docs/sql/deploy/02-dados-iniciais.sql`, **trocando os valores entre `<...>`**: cria o condomínio e o primeiro administrador, **sem senha**. O CPF vai no formato `000.000.000-00`.
+   3. `docs/sql/deploy/03-primeiro-master.sql`, também trocando os valores entre `<...>`: cria o primeiro usuário **MASTER** (donos do Condo+), sem condomínio e sem senha. É ele quem cadastra os próximos condomínios e administradores pela área `/plataforma`.
 
 > Os scripts `docs/sql/2026-*.sql` são migrações para bancos **antigos**. Num banco novo, o `01-schema.sql` já contém tudo.
 

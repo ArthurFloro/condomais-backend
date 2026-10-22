@@ -11,6 +11,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class TokenServiceTest {
@@ -38,6 +39,35 @@ class TokenServiceTest {
         var token = tokenService.gerarToken(usuario);
 
         assertEquals("12345678900", tokenService.getSubject(token));
+    }
+
+    @Test
+    void tokenDoAdminTrazOCondominio() {
+        var condominio = new Condominio();
+        condominio.setId(UUID.randomUUID());
+        var usuario = new Usuario();
+        usuario.setId(UUID.randomUUID());
+        usuario.setCpf("12345678900");
+        usuario.setPerfil("ADMIN");
+        usuario.setCondominio(condominio);
+
+        var claims = JWT.decode(tokenService.gerarToken(usuario)).getClaims();
+
+        assertEquals(condominio.getId().toString(), claims.get("condominio_id").asString());
+    }
+
+    @Test
+    void tokenDoMasterSaiSemCondominio() {
+        var usuario = new Usuario();
+        usuario.setId(UUID.randomUUID());
+        usuario.setCpf("12345678900");
+        usuario.setPerfil("MASTER");
+
+        var token = tokenService.gerarToken(usuario);
+
+        assertEquals("12345678900", tokenService.getSubject(token));
+        assertEquals("MASTER", JWT.decode(token).getClaim("perfil").asString());
+        assertFalse(JWT.decode(token).getClaims().containsKey("condominio_id"));
     }
 
     @Test

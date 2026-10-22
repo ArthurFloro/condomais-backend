@@ -122,7 +122,7 @@ BEGIN;
     create table usuarios (
         cpf varchar(14) not null unique,
         apartamento_id uuid,
-        condominio_id uuid not null,
+        condominio_id uuid,
         id uuid not null,
         status varchar(20),
         telefone varchar(20),
@@ -131,7 +131,8 @@ BEGIN;
         email varchar(255),
         nome varchar(255) not null,
         senha varchar(255),
-        primary key (id)
+        primary key (id),
+        constraint usuarios_master_sem_condominio check ((perfil = 'MASTER') = (condominio_id is null))
     );
 
     create table usuarios_apartamentos (

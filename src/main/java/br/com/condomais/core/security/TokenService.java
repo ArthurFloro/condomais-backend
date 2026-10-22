@@ -25,14 +25,16 @@ public class TokenService {
     public String gerarToken(Usuario usuario) {
         try {
             Algorithm algoritmo = Algorithm.HMAC256(secret);
-            return JWT.create()
+            var token = JWT.create()
                     .withIssuer(ISSUER)
                     .withSubject(usuario.getCpf())
                     .withClaim("id", usuario.getId().toString())
-                    .withClaim("perfil", usuario.getPerfil())
-                    .withClaim("condominio_id", usuario.getCondominio().getId().toString())
-                    .withExpiresAt(gerarDataExpiracao())
-                    .sign(algoritmo);
+                    .withClaim("perfil", usuario.getPerfil());
+            // O MASTER não tem condomínio: o token dele sai sem a claim
+            if (usuario.getCondominio() != null) {
+                token.withClaim("condominio_id", usuario.getCondominio().getId().toString());
+            }
+            return token.withExpiresAt(gerarDataExpiracao()).sign(algoritmo);
         } catch (JWTCreationException exception) {
             throw new RuntimeException("Erro ao gerar o token JWT", exception);
         }

@@ -30,11 +30,11 @@ public class SecurityFilter extends OncePerRequestFilter {
             try {
                 // Recupera o CPF do usuário a partir do token
                 var subject = tokenService.getSubject(tokenJWT);
-                var usuario = usuarioRepository.findByCpf(subject).orElseThrow();
-                // Usuário desativado perde o acesso mesmo com token ainda válido
-                if (!usuario.isAtivo()) throw new IllegalStateException("Usuário inativo");
-
+                var usuario = usuarioRepository.findComCondominioByCpf(subject).orElseThrow();
                 var usuarioAutenticado = new UsuarioAutenticado(usuario);
+                // Usuário desativado (ou de condomínio desativado) perde o acesso mesmo com token ainda válido
+                if (!usuarioAutenticado.isEnabled()) throw new IllegalStateException("Acesso desativado");
+
                 var authentication = new UsernamePasswordAuthenticationToken(usuarioAutenticado, null, usuarioAutenticado.getAuthorities());
 
                 // Força a autenticação neste request

@@ -1,6 +1,7 @@
 package br.com.condomais.core.security;
 
 import br.com.condomais.auth.model.Usuario;
+import br.com.condomais.auth.service.UsuarioService;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -21,8 +22,9 @@ public class UsuarioAutenticado implements UserDetails {
         return usuario.getId();
     }
 
+    // Nulo para o MASTER, que não pertence a nenhum condomínio (o SecurityConfig o mantém fora das rotas de condomínio)
     public UUID getCondominioId() {
-        return usuario.getCondominio().getId();
+        return usuario.getCondominio() != null ? usuario.getCondominio().getId() : null;
     }
 
     public String getPerfil() {
@@ -31,7 +33,8 @@ public class UsuarioAutenticado implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + usuario.getPerfil().toUpperCase()));
+        // Normalizado para que perfis antigos ("Administrador", "Porteiro") caiam nas mesmas regras de ADMIN e PORTARIA
+        return List.of(new SimpleGrantedAuthority("ROLE_" + UsuarioService.normalizarPerfil(usuario.getPerfil())));
     }
 
     @Override
@@ -51,5 +54,8 @@ public class UsuarioAutenticado implements UserDetails {
     @Override
     public boolean isCredentialsNonExpired() { return true; }
     @Override
-    public boolean isEnabled() { return usuario.isAtivo(); }
+    public boolean isEnabled() {
+        // Usuário inativo ou condomínio desativado pelo MASTER: sem login e sem acesso com token já emitido
+        return usuario.isAtivo() && (usuario.getCondominio() == null || usuario.getCondominio().isAtivo());
+    }
 }

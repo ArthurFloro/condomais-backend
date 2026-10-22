@@ -186,7 +186,7 @@ class UsuarioServiceTest {
         var morador = usuario("MORADOR");
         morador.setApartamento(apartamento());
         morador.setVinculo("INQUILINO");
-        when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
+        when(usuarioRepository.findById(morador.getId())).thenReturn(Optional.of(morador));
 
         var resposta = service.meusDados(new UsuarioAutenticado(morador));
 
@@ -194,6 +194,26 @@ class UsuarioServiceTest {
         assertEquals("101", resposta.apartamentoNumero());
         assertEquals("Torre A", resposta.torreNome());
         assertEquals("Residencial Teste", resposta.condominioNome());
+    }
+
+    @Test
+    void masterSemCondominioTambemConsultaOsProprioDados() {
+        var master = usuario("MASTER");
+        master.setCondominio(null);
+        when(usuarioRepository.findById(master.getId())).thenReturn(Optional.of(master));
+
+        var resposta = service.meusDados(new UsuarioAutenticado(master));
+
+        assertEquals("MASTER", resposta.perfil());
+        assertNull(resposta.condominioNome());
+    }
+
+    @Test
+    void adminNaoCadastraUsuarioMaster() {
+        var dados = new UsuarioDTO("Dono", CPF_VALIDO, null, null, "MASTER", null, null);
+
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrar(dados, authAdmin));
+        verify(usuarioRepository, never()).save(any());
     }
 
     @Test

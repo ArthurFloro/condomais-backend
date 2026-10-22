@@ -22,13 +22,6 @@ public class CondominioController {
     @Autowired
     private CondominioService condominioService;
 
-    @PostMapping
-    @Operation(summary = "Cadastrar novo condomínio (somente ADMIN)", description = "Cadastra um novo condomínio na plataforma (RF-CON-001, RN-CON-002). Enquanto não existe perfil de administradora, exige ADMIN.")
-    public ResponseEntity<Condominio> cadastrarCondominio(@RequestBody CondominioDTO dados) {
-        Condominio condominio = condominioService.cadastrarCondominio(dados, auth());
-        return ResponseEntity.ok(condominio);
-    }
-
     @PostMapping("/torres")
     @Operation(summary = "Cadastrar torre (somente ADMIN)", description = "Cadastra uma torre no condomínio do usuário autenticado; o condominioId do corpo é ignorado (RF-CON-004).")
     public ResponseEntity<Torre> cadastrarTorre(@RequestBody TorreDTO dados) {
@@ -64,19 +57,6 @@ public class CondominioController {
     @Operation(summary = "Buscar condomínio por ID", description = "Retorna o condomínio do usuário autenticado; outro id responde 404.")
     public ResponseEntity<Condominio> buscarCondominio(@PathVariable UUID id) {
         return ResponseEntity.ok(condominioService.buscarCondominio(id, auth()));
-    }
-
-    @PutMapping("/{id}")
-    @Operation(summary = "Editar condomínio (somente ADMIN)", description = "Atualiza nome, CNPJ e status do condomínio. O CNPJ não pode pertencer a outro condomínio.")
-    public ResponseEntity<Condominio> atualizarCondominio(@PathVariable UUID id, @RequestBody CondominioDTO dados) {
-        return ResponseEntity.ok(condominioService.atualizarCondominio(id, dados, auth()));
-    }
-
-    @DeleteMapping("/{id}")
-    @Operation(summary = "Excluir condomínio (somente ADMIN)", description = "Remove o condomínio. Bloqueado se houver torres, apartamentos, áreas comuns ou outros registros vinculados.")
-    public ResponseEntity<Void> excluirCondominio(@PathVariable UUID id) {
-        condominioService.excluirCondominio(id, auth());
-        return ResponseEntity.noContent().build();
     }
 
     // ---------------------------------------------------------------------

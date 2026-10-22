@@ -38,7 +38,7 @@ public class Usuario {
     private String senha;
 
     @Column(nullable = false, length = 50)
-    private String perfil; // ADMIN, PORTARIA, MORADOR
+    private String perfil; // MASTER, ADMIN, PORTARIA, MORADOR
 
     // ATIVO ou INATIVO; nulo (registros antigos) conta como ativo. Inativo não consegue logar.
     @Column(length = 20)
@@ -52,8 +52,9 @@ public class Usuario {
     @Column(length = 20)
     private String vinculo; // PROPRIETARIO, INQUILINO (só para MORADOR)
 
+    // Nulo só para o MASTER (dono da plataforma); o banco garante isso com um CHECK
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "condominio_id", nullable = false)
+    @JoinColumn(name = "condominio_id")
     private Condominio condominio;
 
     public boolean isAtivo() {

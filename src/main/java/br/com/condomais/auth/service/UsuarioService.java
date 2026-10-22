@@ -49,7 +49,9 @@ public class UsuarioService {
     // Dados de quem está logado: qualquer perfil (o morador usa para montar a própria área)
     @Transactional(readOnly = true)
     public UsuarioResponseDTO meusDados(UsuarioAutenticado auth) {
-        return UsuarioResponseDTO.from(buscarEntidade(auth.getId(), auth));
+        // Por id, sem filtro de condomínio: o MASTER também usa esta rota e não tem condomínio
+        return UsuarioResponseDTO.from(usuarioRepository.findById(auth.getId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado.")));
     }
 
     @Transactional(readOnly = true)
@@ -156,7 +158,7 @@ public class UsuarioService {
     }
 
     // O login compara o CPF exatamente como gravado; o padrão do banco é 000.000.000-00
-    static String formatarCpf(String cpf) {
+    public static String formatarCpf(String cpf) {
         var digitos = cpf == null ? "" : cpf.replaceAll("\\D", "");
         if (!cpfValido(digitos)) {
             throw new IllegalArgumentException("CPF inválido.");

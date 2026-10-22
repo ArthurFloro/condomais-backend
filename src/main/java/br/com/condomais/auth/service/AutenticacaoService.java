@@ -17,7 +17,7 @@ public class AutenticacaoService implements UserDetailsService {
     @Override
     public UserDetails loadUserByUsername(String cpf) throws UsernameNotFoundException {
         // Regra RN-AUT-001: Autenticação via CPF previamente cadastrado
-        var usuario = repository.findByCpf(cpf)
+        var usuario = repository.findComCondominioByCpf(cpf)
                 .orElseThrow(() -> new UsernameNotFoundException("CPF não encontrado ou não autorizado."));
 
         return new UsuarioAutenticado(usuario);
