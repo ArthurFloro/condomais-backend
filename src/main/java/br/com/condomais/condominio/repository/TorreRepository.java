@@ -11,4 +11,6 @@ public interface TorreRepository extends JpaRepository<Torre, UUID> {
     List<Torre> findByCondominioId(UUID condominioId);
     Optional<Torre> findByIdAndCondominioId(UUID id, UUID condominioId);
     boolean existsByCondominioId(UUID condominioId);
+    boolean existsByCondominioIdAndNomeIgnoreCase(UUID condominioId, String nome);
+    boolean existsByCondominioIdAndNomeIgnoreCaseAndIdNot(UUID condominioId, String nome, UUID id);
 }

@@ -14,4 +14,8 @@ public interface ApartamentoRepository extends JpaRepository<Apartamento, UUID> 
     List<Apartamento> findByTorreId(UUID torreId);
     boolean existsByCondominioId(UUID condominioId);
     boolean existsByTorreId(UUID torreId);
+    boolean existsByTorreIdAndNumero(UUID torreId, String numero);
+    boolean existsByTorreIdAndNumeroAndIdNot(UUID torreId, String numero, UUID id);
+    boolean existsByCondominioIdAndTorreIsNullAndNumero(UUID condominioId, String numero);
+    boolean existsByCondominioIdAndTorreIsNullAndNumeroAndIdNot(UUID condominioId, String numero, UUID id);
 }

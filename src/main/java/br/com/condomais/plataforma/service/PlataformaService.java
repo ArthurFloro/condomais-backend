@@ -58,6 +58,8 @@ public class PlataformaService {
         var condominio = new Condominio();
         preencherCondominio(condominio, dados.condominio());
         condominio.setStatus("ATIVO");
+        // O admin completa endereço, torres, unidades e áreas comuns pelo Setup Wizard
+        condominio.setConfiguracaoInicial("PENDENTE");
         condominio.setCreatedAt(LocalDateTime.now());
         condominio = condominioRepository.save(condominio);
 

@@ -68,8 +68,12 @@ BEGIN;
     create table condominios (
         created_at timestamp(6),
         id uuid not null,
+        estado varchar(2),
         cnpj varchar(18) not null unique,
+        configuracao_inicial varchar(20) not null,
         status varchar(50) not null,
+        cidade varchar(100),
+        endereco varchar(255),
         nome varchar(255) not null,
         primary key (id)
     );
@@ -333,5 +337,11 @@ BEGIN;
        add constraint FK7s7yqli278slodmwy1mtd1ki1 
        foreign key (visitante_id) 
        references visitantes;
+
+    -- Unicidade que o Hibernate não gera: nome de torre no condomínio e número de unidade na torre
+    -- (ou entre as unidades sem torre do condomínio)
+    create unique index torres_nome_unico on torres (condominio_id, lower(nome));
+    create unique index apartamentos_numero_unico_na_torre on apartamentos (torre_id, numero) where torre_id is not null;
+    create unique index apartamentos_numero_unico_sem_torre on apartamentos (condominio_id, numero) where torre_id is null;
 
 COMMIT;

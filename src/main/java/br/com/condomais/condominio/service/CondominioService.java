@@ -33,6 +33,9 @@ public class CondominioService {
     @Transactional
     public Torre cadastrarTorre(TorreDTO dados, UsuarioAutenticado auth) {
         exigirAdmin(auth);
+        if (torreRepository.existsByCondominioIdAndNomeIgnoreCase(auth.getCondominioId(), dados.nome())) {
+            throw new ConflitoException("Já existe uma torre com este nome neste condomínio.");
+        }
         var torre = new Torre();
         torre.setNome(dados.nome());
         torre.setCondominio(buscarCondominioDoUsuario(auth));
@@ -50,6 +53,7 @@ public class CondominioService {
         if (dados.torreId() != null) {
             apartamento.setTorre(buscarTorreEntidade(dados.torreId(), auth));
         }
+        exigirNumeroLivre(apartamento, null);
 
         return apartamentoRepository.save(apartamento);
     }
@@ -105,6 +109,9 @@ public class CondominioService {
         exigirAdmin(auth);
         var torre = buscarTorreEntidade(id, auth);
         // A torre não muda de condomínio: o condominioId do body é ignorado.
+        if (torreRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(auth.getCondominioId(), dados.nome(), id)) {
+            throw new ConflitoException("Já existe uma torre com este nome neste condomínio.");
+        }
         torre.setNome(dados.nome());
         return TorreResponseDTO.from(torreRepository.save(torre));
     }
@@ -149,6 +156,7 @@ public class CondominioService {
         // O apartamento não muda de condomínio (condominioId do body é ignorado),
         // mas pode trocar de torre desde que ela pertença ao mesmo condomínio.
         apartamento.setTorre(dados.torreId() != null ? buscarTorreEntidade(dados.torreId(), auth) : null);
+        exigirNumeroLivre(apartamento, id);
 
         return ApartamentoResponseDTO.from(apartamentoRepository.save(apartamento));
     }
@@ -221,6 +229,27 @@ public class CondominioService {
     private Apartamento buscarApartamentoEntidade(UUID id, UsuarioAutenticado auth) {
         return apartamentoRepository.findByIdAndCondominioId(id, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Apartamento não encontrado."));
+    }
+
+    // Número único na torre; sem torre (edifício pequeno), único entre as unidades sem torre do condomínio.
+    // O banco tem índices únicos equivalentes; aqui a resposta vira um 409 legível em vez de erro 500.
+    private void exigirNumeroLivre(Apartamento apartamento, UUID idAtual) {
+        var numero = apartamento.getNumero();
+        boolean repetido;
+        if (apartamento.getTorre() != null) {
+            var torreId = apartamento.getTorre().getId();
+            repetido = idAtual == null
+                    ? apartamentoRepository.existsByTorreIdAndNumero(torreId, numero)
+                    : apartamentoRepository.existsByTorreIdAndNumeroAndIdNot(torreId, numero, idAtual);
+        } else {
+            var condominioId = apartamento.getCondominio().getId();
+            repetido = idAtual == null
+                    ? apartamentoRepository.existsByCondominioIdAndTorreIsNullAndNumero(condominioId, numero)
+                    : apartamentoRepository.existsByCondominioIdAndTorreIsNullAndNumeroAndIdNot(condominioId, numero, idAtual);
+        }
+        if (repetido) {
+            throw new ConflitoException("Já existe uma unidade com este número" + (apartamento.getTorre() != null ? " nesta torre." : "."));
+        }
     }
 
     // Enquanto não há autorização por perfil no SecurityConfig, a estrutura do condomínio checa aqui

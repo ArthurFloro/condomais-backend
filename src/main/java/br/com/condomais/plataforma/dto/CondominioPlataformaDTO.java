@@ -13,6 +13,7 @@ public record CondominioPlataformaDTO(
         String nome,
         String cnpj,
         String status,
+        String configuracaoInicial,
         LocalDateTime criadoEm,
         List<Administrador> administradores
 ) {
@@ -36,6 +37,7 @@ public record CondominioPlataformaDTO(
                 condominio.getNome(),
                 condominio.getCnpj(),
                 condominio.isAtivo() ? "ATIVO" : "INATIVO",
+                condominio.getConfiguracaoInicial(),
                 condominio.getCreatedAt(),
                 administradores.stream().map(Administrador::from).toList()
         );
