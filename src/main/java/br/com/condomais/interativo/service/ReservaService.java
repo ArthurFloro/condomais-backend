@@ -26,6 +26,11 @@ public class ReservaService {
         var area = areaComumRepository.findByIdAndCondominioId(dados.areaId(), condominioId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Área comum não encontrada."));
 
+        // Área desativada (soft-delete) mantém o histórico, mas não aceita reservas novas
+        if (!area.getAtivo()) {
+            throw new IllegalArgumentException("Esta área comum está desativada e não aceita novas reservas.");
+        }
+
         if (!area.getReservavel()) {
             throw new IllegalArgumentException("Esta área não está configurada como reservável (RN-RES-001).");
         }
