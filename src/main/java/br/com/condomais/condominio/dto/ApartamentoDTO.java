@@ -6,5 +6,6 @@ public record ApartamentoDTO(
         String numero,
         String status,
         UUID torreId,
-        UUID condominioId
+        UUID condominioId,
+        Integer andar          // opcional
 ) {}

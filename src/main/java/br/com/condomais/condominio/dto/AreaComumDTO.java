@@ -8,5 +8,6 @@ public record AreaComumDTO(
         String regras,
         Boolean reservavel,
         Boolean exigeAprovacao,
-        UUID condominioId
+        UUID condominioId,
+        Integer capacidade     // opcional
 ) {}

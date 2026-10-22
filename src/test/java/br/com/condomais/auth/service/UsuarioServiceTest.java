@@ -195,6 +195,7 @@ class UsuarioServiceTest {
         assertEquals("Torre A", resposta.torreNome());
         assertEquals("Residencial Teste", resposta.condominioNome());
         assertEquals(condominio.getConfiguracaoInicial(), resposta.configuracaoInicial());
+        assertEquals("VERTICAL", resposta.modeloCondominio());
     }
 
     @Test

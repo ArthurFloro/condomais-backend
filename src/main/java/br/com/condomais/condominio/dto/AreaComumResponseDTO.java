@@ -12,7 +12,8 @@ public record AreaComumResponseDTO(
         Boolean reservavel,
         Boolean exigeAprovacao,
         Boolean ativo,
-        UUID condominioId
+        UUID condominioId,
+        Integer capacidade
 ) {
     public static AreaComumResponseDTO from(AreaComum area) {
         return new AreaComumResponseDTO(
@@ -23,7 +24,8 @@ public record AreaComumResponseDTO(
                 area.getReservavel(),
                 area.getExigeAprovacao(),
                 area.getAtivo(),
-                area.getCondominio().getId()
+                area.getCondominio().getId(),
+                area.getCapacidade()
         );
     }
 }

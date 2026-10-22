@@ -22,6 +22,9 @@ public class Apartamento {
     @Column(nullable = false, length = 50)
     private String status;
 
+    // Andar da unidade (gerado pelo Setup Wizard nos modelos VERTICAL e EDIFICIO); nulo para casas
+    private Integer andar;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "torre_id")
     private Torre torre; // Pode ser nulo para condomínios horizontais (sem torre)
