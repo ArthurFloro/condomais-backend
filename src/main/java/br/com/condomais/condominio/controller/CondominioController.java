@@ -3,10 +3,12 @@ package br.com.condomais.condominio.controller;
 import br.com.condomais.condominio.dto.*;
 import br.com.condomais.condominio.model.*;
 import br.com.condomais.condominio.service.CondominioService;
+import br.com.condomais.condominio.service.ConfiguracaoInicialService;
 import br.com.condomais.core.security.UsuarioAutenticado;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
@@ -21,6 +23,15 @@ public class CondominioController {
 
     @Autowired
     private CondominioService condominioService;
+
+    @Autowired
+    private ConfiguracaoInicialService configuracaoInicialService;
+
+    @PostMapping("/configuracao-inicial")
+    @Operation(summary = "Configuração inicial (Setup Wizard, somente ADMIN)", description = "Recebe endereço, torres (parâmetros de numeração) e áreas comuns de um condomínio PENDENTE; gera as unidades e grava tudo numa transação. 201 ao concluir; 400 dados inválidos ou numeração repetida; 409 se já foi concluída.")
+    public ResponseEntity<ConfiguracaoInicialResponseDTO> configuracaoInicial(@RequestBody ConfiguracaoInicialDTO dados) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(configuracaoInicialService.configurar(dados, auth()));
+    }
 
     @PostMapping("/torres")
     @Operation(summary = "Cadastrar torre (somente ADMIN)", description = "Cadastra uma torre no condomínio do usuário autenticado; o condominioId do corpo é ignorado (RF-CON-004).")

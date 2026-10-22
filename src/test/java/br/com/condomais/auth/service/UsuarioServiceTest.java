@@ -194,6 +194,7 @@ class UsuarioServiceTest {
         assertEquals("101", resposta.apartamentoNumero());
         assertEquals("Torre A", resposta.torreNome());
         assertEquals("Residencial Teste", resposta.condominioNome());
+        assertEquals(condominio.getConfiguracaoInicial(), resposta.configuracaoInicial());
     }
 
     @Test
@@ -206,6 +207,7 @@ class UsuarioServiceTest {
 
         assertEquals("MASTER", resposta.perfil());
         assertNull(resposta.condominioNome());
+        assertNull(resposta.configuracaoInicial());
     }
 
     @Test

@@ -11,6 +11,7 @@ import br.com.condomais.condominio.repository.ApartamentoRepository;
 import br.com.condomais.condominio.repository.AreaComumRepository;
 import br.com.condomais.condominio.repository.CondominioRepository;
 import br.com.condomais.condominio.repository.TorreRepository;
+import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
 import org.junit.jupiter.api.BeforeEach;
@@ -192,5 +193,48 @@ class CondominioServiceTest {
         when(torreRepository.save(any(Torre.class))).thenAnswer(i -> i.getArgument(0));
 
         assertNotNull(service.cadastrarTorre(new TorreDTO("Torre C", null), autenticado("Administrador")));
+    }
+
+    // ---------------------------------------------------------------------
+    // Unicidade no cadastro manual: 409 legível antes do índice único do banco
+    // ---------------------------------------------------------------------
+
+    @Test
+    void torreComNomeRepetidoNoCondominioEhConflito() {
+        when(torreRepository.existsByCondominioIdAndNomeIgnoreCase(condominio.getId(), "torre a")).thenReturn(true);
+
+        assertThrows(ConflitoException.class, () -> service.cadastrarTorre(new TorreDTO("torre a", null), admin));
+        verify(torreRepository, never()).save(any());
+    }
+
+    @Test
+    void renomearTorreParaNomeDeOutraEhConflito() {
+        var torre = torre();
+        when(torreRepository.findByIdAndCondominioId(torre.getId(), condominio.getId())).thenReturn(Optional.of(torre));
+        when(torreRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(condominio.getId(), "Torre B", torre.getId())).thenReturn(true);
+
+        assertThrows(ConflitoException.class, () -> service.atualizarTorre(torre.getId(), new TorreDTO("Torre B", null), admin));
+        verify(torreRepository, never()).save(any());
+    }
+
+    @Test
+    void unidadeComNumeroRepetidoNaTorreEhConflito() {
+        var torre = torre();
+        when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
+        when(torreRepository.findByIdAndCondominioId(torre.getId(), condominio.getId())).thenReturn(Optional.of(torre));
+        when(apartamentoRepository.existsByTorreIdAndNumero(torre.getId(), "101")).thenReturn(true);
+
+        assertThrows(ConflitoException.class,
+                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", torre.getId(), null), admin));
+        verify(apartamentoRepository, never()).save(any());
+    }
+
+    @Test
+    void unidadeSemTorreComNumeroRepetidoEhConflito() {
+        when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
+        when(apartamentoRepository.existsByCondominioIdAndTorreIsNullAndNumero(condominio.getId(), "101")).thenReturn(true);
+
+        assertThrows(ConflitoException.class,
+                () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", null, null), admin));
     }
 }

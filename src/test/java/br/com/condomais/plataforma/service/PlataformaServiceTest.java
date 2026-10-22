@@ -89,6 +89,8 @@ class PlataformaServiceTest {
         assertNull(admin.getValue().getSenha());
         assertEquals(resposta.id(), admin.getValue().getCondominio().getId());
         assertEquals("ATIVO", resposta.status());
+        // O admin completa a estrutura pelo Setup Wizard
+        assertEquals("PENDENTE", resposta.configuracaoInicial());
     }
 
     @Test

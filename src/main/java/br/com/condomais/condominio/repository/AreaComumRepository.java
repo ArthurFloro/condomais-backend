@@ -12,4 +12,5 @@ public interface AreaComumRepository extends JpaRepository<AreaComum, UUID> {
     List<AreaComum> findByAtivoTrue();
     List<AreaComum> findByCondominioIdAndAtivoTrue(UUID condominioId);
     boolean existsByCondominioId(UUID condominioId);
+    boolean existsByCondominioIdAndNomeIgnoreCase(UUID condominioId, String nome);
 }

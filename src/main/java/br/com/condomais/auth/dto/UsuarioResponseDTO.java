@@ -17,7 +17,8 @@ public record UsuarioResponseDTO(
         String apartamentoNumero,
         String torreNome,
         boolean primeiroAcessoPendente,
-        String condominioNome
+        String condominioNome,
+        String configuracaoInicial // PENDENTE ou CONCLUIDA; nulo para o MASTER
 ) {
     public static UsuarioResponseDTO from(Usuario usuario) {
         var apartamento = usuario.getApartamento();
@@ -35,7 +36,8 @@ public record UsuarioResponseDTO(
                 apartamento != null ? apartamento.getNumero() : null,
                 torre != null ? torre.getNome() : null,
                 usuario.getSenha() == null,
-                usuario.getCondominio() != null ? usuario.getCondominio().getNome() : null
+                usuario.getCondominio() != null ? usuario.getCondominio().getNome() : null,
+                usuario.getCondominio() != null ? usuario.getCondominio().getConfiguracaoInicial() : null
         );
     }
 }
