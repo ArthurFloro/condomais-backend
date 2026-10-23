@@ -83,11 +83,26 @@ No Render, troque `CORS_ALLOWED_ORIGINS` pela URL de produção da Vercel, **sem
 2. Em **Unidades**, cadastre as torres ("+ Nova torre") e as unidades.
 3. Em **Moradores**, cadastre os moradores. Cada um ativa a própria conta pelo mesmo "Ativar minha conta".
 
+## 6. Assistente virtual (opcional)
+
+O assistente do morador roda em **outro serviço**, o `condomais-assistente` (repo `ArthurFloro/condomais-assistente`, Python + **Gemini**). Este backend só repassa a conversa a ele, com o mesmo token do morador; sem o passo abaixo, `POST /assistente/mensagens` responde 503 e o resto do sistema funciona normalmente.
+
+1. **Neon:** no repo do assistente, `python scripts/aplicar_sql.py` (com `OWNER_DATABASE_URL` no `.env`) cria as views `vw_assistente_*` e a role somente leitura `assistente_ro`. Rode de novo sempre que uma entidade deste backend mudar.
+2. **Gemini:** gere uma chave gratuita em <https://aistudio.google.com/apikey>.
+3. **Render, novo Web Service** (Docker) a partir do repo `condomais-assistente`, com as variáveis:
+   - `DATABASE_URL`: conexão **direta** do Neon (host sem `-pooler`) com a role `assistente_ro`;
+   - `JWT_SECRET`: **exatamente o mesmo valor** deste backend (se diferir, o assistente responde 503 e o log do serviço Python mostra 401);
+   - `GEMINI_API_KEY`: a chave do passo 2;
+   - health check: `/health`.
+4. **Render, este backend:** defina `ASSISTENTE_API_URL` com a URL pública do serviço novo (sem barra no final) e salve; o Render reinicia.
+5. No plano gratuito do Render o serviço do assistente "dorme"; a primeira pergunta pode demorar (o backend espera até 100 s).
+
 ## Problemas comuns
 
 | Sintoma | Causa provável |
 |---|---|
 | O deploy no Render falha com `Could not resolve placeholder` | falta variável de ambiente |
+| O chat do assistente diz "indisponível" | `ASSISTENTE_API_URL` vazia/errada, serviço do assistente fora do ar ou sem `GEMINI_API_KEY`, ou `JWT_SECRET` diferente entre os dois serviços (veja o log de cada um) |
 | `Schema-validation: missing table` | o `01-schema.sql` não foi rodado no Neon |
 | O front mostra "Não foi possível conectar ao servidor" | a API está dormindo (espere e tente de novo), `VITE_API_URL` está errada ou falta o Redeploy do front |
 | Erro de CORS no console do navegador | `CORS_ALLOWED_ORIGINS` diferente da URL do front (com barra no final, http/https, URL de preview) |
