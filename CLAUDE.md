@@ -77,6 +77,12 @@ There is no per-request tenant header — the condomínio is derived from the au
 - `AreaComum` uses a soft-delete boolean (`ativo`) instead of hard deletion, since reservation history must be preserved — see the `/areas-comuns/{id}/ativar` and `/desativar` endpoints.
 - `docs/sql/` holds ad-hoc migration SQL snippets (there's no Flyway/Liquibase yet) — check there when a model change needs a matching DDL note.
 
+### Operational modules (portaria, interativo, atendimento)
+
+- Encomendas (`/portaria/encomendas`) is the first module with reads: `GET` list (newest first, `status` = `AGUARDANDO_RETIRADA`/`RETIRADA`, `apartamentoId`) and `GET /{id}`. PORTARIA and ADMIN see the whole condomínio and are the only ones who register arrival/pickup; a MORADOR only sees their own unit (taken from `Usuario.apartamento`, never from the request). Responses use `EncomendaResponseDTO`. Follow this shape for the other modules.
+- Visitas, avisos, reservas and chamados still return raw entities from their `POST`/`PUT` and have no list endpoints yet. `Usuario.cpf` and `Usuario.senha` are `@JsonIgnore` so those entity responses do not leak them; still prefer DTOs.
+- Known bug: `AvisoController` builds `new AvisoService()` instead of injecting it, so `POST /interativo/avisos` always fails with a 500.
+
 ### Error handling
 
 `core.exception.GlobalExceptionHandler` (`@RestControllerAdvice`) maps exceptions to HTTP responses with a standard body, `ErroResponseDTO { status, erro, mensagem, caminho, timestamp }`. When adding validations in services, throw:
