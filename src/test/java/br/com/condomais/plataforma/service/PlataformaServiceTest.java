@@ -5,6 +5,7 @@ import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.Condominio;
 import br.com.condomais.condominio.repository.CondominioRepository;
+import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
@@ -36,6 +37,7 @@ class PlataformaServiceTest {
 
     @Mock private CondominioRepository condominioRepository;
     @Mock private UsuarioRepository usuarioRepository;
+    @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
     @InjectMocks private PlataformaService service;
 
     private UsuarioAutenticado master;
@@ -155,7 +157,8 @@ class PlataformaServiceTest {
     void promoverMoradorTiraUnidadeEVinculoEDesativaAdminAnterior() {
         var anterior = usuario("ADMIN");
         var morador = usuario("MORADOR");
-        morador.setApartamento(new Apartamento());
+        var unidade = new Apartamento();
+        morador.setApartamento(unidade);
         morador.setVinculo("PROPRIETARIO");
         when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
         when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
@@ -166,6 +169,7 @@ class PlataformaServiceTest {
 
         assertEquals("ADMIN", morador.getPerfil());
         assertNull(morador.getApartamento());
+        verify(ocupacaoUnidadeService).recalcular(unidade);
         assertNull(morador.getVinculo());
         assertEquals("ATIVO", morador.getStatus());
         assertEquals("INATIVO", anterior.getStatus());

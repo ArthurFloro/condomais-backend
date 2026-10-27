@@ -23,4 +23,8 @@ public interface UsuarioRepository extends JpaRepository<Usuario, UUID> {
     Optional<Usuario> findByIdAndCondominioId(UUID id, UUID condominioId);
 
     List<Usuario> findByCondominioIdIn(Collection<UUID> condominioIds);
+
+    // Status nulo (registros antigos) conta como ativo, como em Usuario.isAtivo()
+    @Query("select count(u) > 0 from Usuario u where u.apartamento.id = :apartamentoId and (u.status is null or u.status <> 'INATIVO')")
+    boolean existeMoradorAtivoNaUnidade(@Param("apartamentoId") UUID apartamentoId);
 }
