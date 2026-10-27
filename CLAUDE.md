@@ -80,8 +80,8 @@ There is no per-request tenant header — the condomínio is derived from the au
 ### Operational modules (portaria, interativo, atendimento)
 
 - Encomendas (`/portaria/encomendas`) is the first module with reads: `GET` list (newest first, `status` = `AGUARDANDO_RETIRADA`/`RETIRADA`, `apartamentoId`) and `GET /{id}`. PORTARIA and ADMIN see the whole condomínio and are the only ones who register arrival/pickup; a MORADOR only sees their own unit (taken from `Usuario.apartamento`, never from the request). Responses use `EncomendaResponseDTO`. Follow this shape for the other modules.
-- Visitas, avisos, reservas and chamados still return raw entities from their `POST`/`PUT` and have no list endpoints yet. `Usuario.cpf` and `Usuario.senha` are `@JsonIgnore` so those entity responses do not leak them; still prefer DTOs.
-- Known bug: `AvisoController` builds `new AvisoService()` instead of injecting it, so `POST /interativo/avisos` always fails with a 500.
+- Comunicados (`/interativo/avisos`) follow the same shape: `GET` list/detail, `POST`, `PUT /{id}`, `DELETE /{id}` with `AvisoResponseDTO`. ADMIN and PORTARIA publish, edit, delete and see everything (including expired; `apenasAtivos=true` filters); a MORADOR only sees active announcements (validity in America/Sao_Paulo) that are general or for their own tower (taken from their unit).
+- Visitas, reservas and chamados still return raw entities from their `POST`/`PUT` and have no list endpoints yet. `Usuario.cpf` and `Usuario.senha` are `@JsonIgnore` so those entity responses do not leak them; still prefer DTOs.
 
 ### Error handling
 
