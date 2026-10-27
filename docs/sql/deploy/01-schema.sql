@@ -152,7 +152,8 @@ BEGIN;
     );
 
     create table visitantes (
-        cpf varchar(14) not null unique,
+        cpf varchar(14) not null,
+        condominio_id uuid not null,
         id uuid not null,
         telefone varchar(20),
         nome varchar(255) not null,
@@ -160,9 +161,12 @@ BEGIN;
     );
 
     create table visitas (
+        data_fim_prevista date,
         data_prevista date,
+        horario_fim_previsto time(0),
         horario_previsto time(0),
         data_hora_entrada timestamp(6),
+        data_hora_registro timestamp(6),
         data_hora_saida timestamp(6),
         apartamento_id uuid not null,
         condominio_id uuid not null,
@@ -171,6 +175,7 @@ BEGIN;
         porteiro_entrada_id uuid,
         porteiro_saida_id uuid,
         visitante_id uuid not null,
+        origem varchar(20),
         status varchar(50) not null,
         observacao TEXT,
         primary key (id)
@@ -341,10 +346,16 @@ BEGIN;
        foreign key (visitante_id) 
        references visitantes;
 
+    alter table if exists visitantes 
+       add constraint fk_visitantes_condominio 
+       foreign key (condominio_id) 
+       references condominios;
+
     -- Unicidade que o Hibernate não gera: nome de torre no condomínio e número de unidade na torre
-    -- (ou entre as unidades sem torre do condomínio)
+    -- (ou entre as unidades sem torre do condomínio), e CPF de visitante no condomínio
     create unique index torres_nome_unico on torres (condominio_id, lower(nome));
     create unique index apartamentos_numero_unico_na_torre on apartamentos (torre_id, numero) where torre_id is not null;
     create unique index apartamentos_numero_unico_sem_torre on apartamentos (condominio_id, numero) where torre_id is null;
+    create unique index visitantes_cpf_unico_no_condominio on visitantes (condominio_id, cpf);
 
 COMMIT;
