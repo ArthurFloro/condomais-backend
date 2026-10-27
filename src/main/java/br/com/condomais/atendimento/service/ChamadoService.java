@@ -43,6 +43,7 @@ public class ChamadoService {
     @Autowired private ApartamentoRepository apartamentoRepository;
     @Autowired private HistoricoChamadoRepository historicoRepository;
     @Autowired private UsuarioRepository usuarioRepository;
+    @Autowired private CategoriaChamadoService categoriaService;
 
     // ---------------------------------------------------------------------
     // Consulta
@@ -79,12 +80,12 @@ public class ChamadoService {
 
     @Transactional
     public ChamadoResponseDTO abrir(AberturaChamadoDTO dados, UsuarioAutenticado auth) {
-        if (dados.categoriaId() == null) {
-            throw new IllegalArgumentException("Informe a categoria do chamado.");
-        }
         var solicitante = usuarioDe(auth);
-        var categoria = categoriaRepository.findByIdAndCondominioId(dados.categoriaId(), auth.getCondominioId())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada."));
+        // Sem categoria escolhida, o chamado vai para "Outros" e a administração pode recategorizar depois
+        var categoria = dados.categoriaId() == null
+                ? categoriaService.garantirOutros(solicitante.getCondominio())
+                : categoriaRepository.findByIdAndCondominioId(dados.categoriaId(), auth.getCondominioId())
+                        .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada."));
 
         var chamado = new Chamado();
         chamado.setTitulo(obrigatorio(dados.titulo(), "Informe o título do chamado.", 255));
@@ -132,6 +133,15 @@ public class ChamadoService {
             registrar(chamado, autor, "STATUS: " + anterior + " -> " + novoStatus, textoOuNulo(dados.comentario()));
             mudouAlgo = true;
         }
+        // Recategorização (ex.: aberto em "Outros" e classificado pela administração)
+        if (dados.categoriaId() != null && !dados.categoriaId().equals(chamado.getCategoria().getId())) {
+            var nova = categoriaRepository.findByIdAndCondominioId(dados.categoriaId(), auth.getCondominioId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada."));
+            var anterior = chamado.getCategoria().getNome();
+            chamado.setCategoria(nova);
+            registrar(chamado, autor, "CATEGORIA: " + anterior + " -> " + nova.getNome(), mudouAlgo ? null : textoOuNulo(dados.comentario()));
+            mudouAlgo = true;
+        }
         // Prestador de serviço externo e previsão de atendimento: campos nulos não mudam
         if (dados.responsavelExterno() != null || dados.contatoExterno() != null || dados.dataPrevisaoAtendimento() != null) {
             if (dados.responsavelExterno() != null) chamado.setResponsavelExterno(opcional(dados.responsavelExterno(), 255));
@@ -142,7 +152,7 @@ public class ChamadoService {
         }
         if (!mudouAlgo) {
             if (textoOuNulo(dados.comentario()) == null) {
-                throw new IllegalArgumentException("Informe um novo status, os dados do atendimento ou um comentário.");
+                throw new IllegalArgumentException("Informe um novo status, uma categoria, os dados do atendimento ou um comentário.");
             }
             registrar(chamado, autor, "COMENTARIO", dados.comentario().trim());
         }

@@ -39,6 +39,7 @@ class ConfiguracaoInicialServiceTest {
     @Mock private TorreRepository torreRepository;
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private AreaComumRepository areaComumRepository;
+    @Mock private br.com.condomais.atendimento.service.CategoriaChamadoService categoriaChamadoService;
     @InjectMocks private ConfiguracaoInicialService service;
 
     private Condominio condominio;
@@ -90,6 +91,8 @@ class ConfiguracaoInicialServiceTest {
         assertEquals("CONCLUIDA", resposta.configuracaoInicial());
         assertEquals("CONCLUIDA", condominio.getConfiguracaoInicial());
         assertEquals("PE", condominio.getEstado());
+        // O condomínio já nasce com a categoria de chamado "Outros"
+        verify(categoriaChamadoService).garantirOutros(condominio);
         var numerosTorreA = unidadesGravadas.subList(0, 40).stream().map(Apartamento::getNumero).toList();
         assertEquals(List.of("101", "102", "103", "104"), numerosTorreA.subList(0, 4));
         assertEquals("1004", numerosTorreA.get(39));

@@ -11,6 +11,7 @@ import br.com.condomais.condominio.repository.ApartamentoRepository;
 import br.com.condomais.condominio.repository.AreaComumRepository;
 import br.com.condomais.condominio.repository.CondominioRepository;
 import br.com.condomais.condominio.repository.TorreRepository;
+import br.com.condomais.atendimento.service.CategoriaChamadoService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
@@ -50,6 +51,7 @@ public class ConfiguracaoInicialService {
     @Autowired private TorreRepository torreRepository;
     @Autowired private ApartamentoRepository apartamentoRepository;
     @Autowired private AreaComumRepository areaComumRepository;
+    @Autowired private CategoriaChamadoService categoriaChamadoService;
 
     @Transactional
     public ConfiguracaoInicialResponseDTO configurar(ConfiguracaoInicialDTO dados, UsuarioAutenticado auth) {
@@ -106,6 +108,8 @@ public class ConfiguracaoInicialService {
             unidades += grupo.unidades().size();
         }
         areaComumRepository.saveAll(areas);
+        // Categoria de chamado para o que não se encaixa nas outras; sem ela, ninguém conseguiria abrir chamado
+        categoriaChamadoService.garantirOutros(condominio);
 
         condominio.setConfiguracaoInicial("CONCLUIDA");
         condominioRepository.save(condominio);

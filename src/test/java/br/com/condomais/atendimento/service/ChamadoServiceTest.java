@@ -43,6 +43,7 @@ class ChamadoServiceTest {
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private HistoricoChamadoRepository historicoRepository;
     @Mock private UsuarioRepository usuarioRepository;
+    @Mock private CategoriaChamadoService categoriaService;
     @InjectMocks private ChamadoService service;
 
     private Condominio condominio;
@@ -157,8 +158,6 @@ class ChamadoServiceTest {
 
     @Test
     void validacoesDaAbertura() {
-        assertThrows(IllegalArgumentException.class,
-                () -> service.abrir(new AberturaChamadoDTO("T", "D", null, null, null, null), auth(morador101)));
         when(categoriaRepository.findByIdAndCondominioId(eletrica.getId(), condominio.getId())).thenReturn(Optional.of(eletrica));
         assertThrows(IllegalArgumentException.class,
                 () -> service.abrir(new AberturaChamadoDTO(" ", "D", eletrica.getId(), null, null, null), auth(morador101)));
@@ -231,7 +230,7 @@ class ChamadoServiceTest {
         var chamado = chamado(morador101, unidade101, "ABERTO");
         when(chamadoRepository.save(chamado)).thenReturn(chamado);
 
-        var resposta = service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("em_atendimento", "Eletricista agendado", "João Eletricista", "(81) 90000-0000", LocalDate.now().plusDays(2)), auth(admin));
+        var resposta = service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("em_atendimento", null, "Eletricista agendado", "João Eletricista", "(81) 90000-0000", LocalDate.now().plusDays(2)), auth(admin));
 
         assertEquals("EM ATENDIMENTO", resposta.status());
         assertEquals("João Eletricista", resposta.responsavelExterno());
@@ -246,11 +245,11 @@ class ChamadoServiceTest {
         var chamado = chamado(morador101, unidade101, "RESOLVIDO");
         when(chamadoRepository.save(chamado)).thenReturn(chamado);
 
-        var resposta = service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("ENCERRADO", null, null, null, null), auth(admin));
+        var resposta = service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("ENCERRADO", null, null, null, null, null), auth(admin));
 
         assertNotNull(resposta.dataEncerramento());
         assertThrows(ConflitoException.class,
-                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("ABERTO", null, null, null, null), auth(admin)));
+                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("ABERTO", null, null, null, null, null), auth(admin)));
         assertThrows(ConflitoException.class,
                 () -> service.comentar(chamado.getId(), new ComentarioChamadoDTO("E agora?"), auth(morador101)));
     }
@@ -260,9 +259,9 @@ class ChamadoServiceTest {
         var chamado = chamado(morador101, unidade101, "ABERTO");
 
         assertThrows(SecurityException.class,
-                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("RESOLVIDO", null, null, null, null), auth(portaria)));
+                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("RESOLVIDO", null, null, null, null, null), auth(portaria)));
         assertThrows(SecurityException.class,
-                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("RESOLVIDO", null, null, null, null), auth(morador101)));
+                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("RESOLVIDO", null, null, null, null, null), auth(morador101)));
         verify(chamadoRepository, never()).save(any());
     }
 
@@ -271,9 +270,9 @@ class ChamadoServiceTest {
         var chamado = chamado(morador101, unidade101, "ABERTO");
 
         assertThrows(IllegalArgumentException.class,
-                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO(null, " ", null, null, null), auth(admin)));
+                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO(null, null, " ", null, null, null), auth(admin)));
         assertThrows(IllegalArgumentException.class,
-                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("PAUSADO", null, null, null, null), auth(admin)));
+                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("PAUSADO", null, null, null, null, null), auth(admin)));
     }
 
     @Test
@@ -290,5 +289,54 @@ class ChamadoServiceTest {
                 () -> service.comentar(daOutra.getId(), new ComentarioChamadoDTO("Oi"), auth(morador101)));
         assertThrows(IllegalArgumentException.class,
                 () -> service.comentar(meu.getId(), new ComentarioChamadoDTO(" "), auth(morador101)));
+    }
+
+    // ---------------------------------------------------------------------
+    // Categoria "Outros"
+    // ---------------------------------------------------------------------
+
+    @Test
+    void semCategoriaOChamadoVaiParaOutros() {
+        var outros = new CategoriaChamado();
+        outros.setId(UUID.randomUUID());
+        outros.setNome("Outros");
+        when(categoriaService.garantirOutros(condominio)).thenReturn(outros);
+        when(chamadoRepository.save(any(Chamado.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resposta = service.abrir(new AberturaChamadoDTO("Portão rangendo", "Garagem", null, null, null, null), auth(morador101));
+
+        assertEquals("Outros", resposta.categoriaNome());
+        verify(categoriaRepository, never()).findByIdAndCondominioId(any(), any());
+    }
+
+    @Test
+    void adminRecategorizaERegistraNoHistorico() {
+        var outros = new CategoriaChamado();
+        outros.setId(UUID.randomUUID());
+        outros.setNome("Outros");
+        var chamado = chamado(morador101, unidade101, "ABERTO");
+        chamado.setCategoria(outros);
+        when(categoriaRepository.findByIdAndCondominioId(eletrica.getId(), condominio.getId())).thenReturn(Optional.of(eletrica));
+        when(chamadoRepository.save(chamado)).thenReturn(chamado);
+
+        var resposta = service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO(null, eletrica.getId(), "Era elétrica", null, null, null), auth(admin));
+
+        assertEquals("Elétrica", resposta.categoriaNome());
+        assertEquals("ABERTO", resposta.status());
+        var historico = ArgumentCaptor.forClass(HistoricoChamado.class);
+        verify(historicoRepository).save(historico.capture());
+        assertEquals("CATEGORIA: Outros -> Elétrica", historico.getValue().getAcao());
+        assertEquals("Era elétrica", historico.getValue().getComentario());
+    }
+
+    @Test
+    void recategorizarParaCategoriaDeOutroCondominioEhRecusado() {
+        var chamado = chamado(morador101, unidade101, "ABERTO");
+        var deOutro = UUID.randomUUID();
+        when(categoriaRepository.findByIdAndCondominioId(deOutro, condominio.getId())).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO(null, deOutro, null, null, null, null), auth(admin)));
+        verify(chamadoRepository, never()).save(any());
     }
 }

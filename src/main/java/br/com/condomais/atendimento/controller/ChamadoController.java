@@ -47,7 +47,7 @@ public class ChamadoController {
     @PostMapping
     @Operation(
             summary = "Abrir um novo chamado ou ocorrência",
-            description = "Qualquer perfil do condomínio (RF-CHA-001). Status inicial ABERTO, prioridade NORMAL se não informada, registro no histórico. O morador só aponta a própria unidade (ou nenhuma, para área comum)."
+            description = "Qualquer perfil do condomínio (RF-CHA-001). Status inicial ABERTO, prioridade NORMAL se não informada, registro no histórico. Sem categoriaId, vai para a categoria Outros. O morador só aponta a própria unidade (ou nenhuma, para área comum)."
     )
     public ResponseEntity<ChamadoResponseDTO> abrir(@RequestBody AberturaChamadoDTO dados) {
         return ResponseEntity.ok(chamadoService.abrir(dados, getUsuarioLogado()));
@@ -56,7 +56,7 @@ public class ChamadoController {
     @PutMapping("/{id}")
     @Operation(
             summary = "Atualizar andamento (administração)",
-            description = "Muda o status e/ou registra o prestador externo e a previsão de atendimento; campos nulos não mudam e o comentário vai para o histórico. Chamado ENCERRADO não muda mais."
+            description = "Muda o status, recategoriza (categoriaId) e/ou registra o prestador externo e a previsão de atendimento; campos nulos não mudam e o comentário vai para o histórico. Chamado ENCERRADO não muda mais."
     )
     public ResponseEntity<ChamadoResponseDTO> atualizar(@PathVariable UUID id, @RequestBody AtualizacaoChamadoDTO dados) {
         return ResponseEntity.ok(chamadoService.atualizar(id, dados, getUsuarioLogado()));

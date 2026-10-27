@@ -27,7 +27,7 @@ public class CategoriaChamadoController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar categorias de chamado", description = "Em ordem alfabética. Aberto a todos do condomínio, para escolher ao abrir um chamado.")
+    @Operation(summary = "Listar categorias de chamado", description = "Em ordem alfabética. Aberto a todos do condomínio, para escolher ao abrir um chamado. Sempre inclui a categoria Outros (criada aqui, se faltar).")
     public ResponseEntity<List<CategoriaChamadoResponseDTO>> listar() {
         return ResponseEntity.ok(categoriaService.listar(getUsuarioLogado()));
     }

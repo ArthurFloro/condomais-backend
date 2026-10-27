@@ -6,6 +6,7 @@ import br.com.condomais.atendimento.model.CategoriaChamado;
 import br.com.condomais.atendimento.repository.CategoriaChamadoRepository;
 import br.com.condomais.atendimento.repository.ChamadoRepository;
 import br.com.condomais.auth.service.UsuarioService;
+import br.com.condomais.condominio.model.Condominio;
 import br.com.condomais.condominio.repository.CondominioRepository;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
@@ -20,6 +21,9 @@ import java.util.UUID;
 /**
  * Categorias de chamado do condomínio do token (ex.: Elétrica, Hidráulica). Todos os perfis do condomínio
  * consultam, para escolher ao abrir um chamado; só a administração cadastra, renomeia e exclui.
+ *
+ * Todo condomínio tem a categoria "Outros", para o chamado que não se encaixa em nenhuma: ela é criada no
+ * Setup Wizard (ou na primeira consulta, para condomínios antigos) e não pode ser renomeada nem excluída.
  */
 @Service
 public class CategoriaChamadoService {
@@ -28,10 +32,25 @@ public class CategoriaChamadoService {
     @Autowired private ChamadoRepository chamadoRepository;
     @Autowired private CondominioRepository condominioRepository;
 
-    @Transactional(readOnly = true)
+    public static final String OUTROS = "Outros";
+
+    @Transactional
     public List<CategoriaChamadoResponseDTO> listar(UsuarioAutenticado auth) {
+        garantirOutros(condominioRepository.getReferenceById(auth.getCondominioId()));
         return categoriaRepository.findByCondominioIdOrderByNomeAsc(auth.getCondominioId()).stream()
                 .map(CategoriaChamadoResponseDTO::from).toList();
+    }
+
+    /** Devolve a categoria "Outros" do condomínio, criando-a se ainda não existir. */
+    @Transactional
+    public CategoriaChamado garantirOutros(Condominio condominio) {
+        return categoriaRepository.findFirstByCondominioIdAndNomeIgnoreCase(condominio.getId(), OUTROS)
+                .orElseGet(() -> {
+                    var outros = new CategoriaChamado();
+                    outros.setNome(OUTROS);
+                    outros.setCondominio(condominio);
+                    return categoriaRepository.save(outros);
+                });
     }
 
     @Transactional
@@ -51,6 +70,7 @@ public class CategoriaChamadoService {
     public CategoriaChamadoResponseDTO renomear(UUID id, CategoriaChamadoDTO dados, UsuarioAutenticado auth) {
         exigirAdmin(auth);
         var categoria = buscar(id, auth);
+        exigirNaoOutros(categoria, "renomeada");
         var nome = nomeValido(dados);
         if (categoriaRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(auth.getCondominioId(), nome, id)) {
             throw new ConflitoException("Já existe uma categoria com este nome.");
@@ -63,6 +83,7 @@ public class CategoriaChamadoService {
     public void excluir(UUID id, UsuarioAutenticado auth) {
         exigirAdmin(auth);
         var categoria = buscar(id, auth);
+        exigirNaoOutros(categoria, "excluída");
         // O chamado guarda a categoria: excluir apagaria a referência do histórico
         if (chamadoRepository.existsByCategoriaId(id)) {
             throw new ConflitoException("Não é possível excluir: existem chamados nesta categoria. Renomeie-a, se precisar.");
@@ -73,6 +94,12 @@ public class CategoriaChamadoService {
     private CategoriaChamado buscar(UUID id, UsuarioAutenticado auth) {
         return categoriaRepository.findByIdAndCondominioId(id, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada."));
+    }
+
+    private static void exigirNaoOutros(CategoriaChamado categoria, String acao) {
+        if (OUTROS.equalsIgnoreCase(categoria.getNome())) {
+            throw new ConflitoException("A categoria \"Outros\" é padrão do sistema e não pode ser " + acao + ".");
+        }
     }
 
     private static String nomeValido(CategoriaChamadoDTO dados) {

@@ -63,9 +63,37 @@ class CategoriaChamadoServiceTest {
 
     @Test
     void qualquerPerfilListaEmOrdemAlfabetica() {
-        when(categoriaRepository.findByCondominioIdOrderByNomeAsc(condominio.getId())).thenReturn(List.of(categoria("Elétrica"), categoria("Limpeza")));
+        when(condominioRepository.getReferenceById(condominio.getId())).thenReturn(condominio);
+        when(categoriaRepository.findFirstByCondominioIdAndNomeIgnoreCase(condominio.getId(), "Outros")).thenReturn(Optional.of(categoria("Outros")));
+        when(categoriaRepository.findByCondominioIdOrderByNomeAsc(condominio.getId())).thenReturn(List.of(categoria("Elétrica"), categoria("Outros")));
 
-        assertEquals(List.of("Elétrica", "Limpeza"), service.listar(morador).stream().map(c -> c.nome()).toList());
+        assertEquals(List.of("Elétrica", "Outros"), service.listar(morador).stream().map(c -> c.nome()).toList());
+        verify(categoriaRepository, never()).save(any());
+    }
+
+    @Test
+    void listarCriaOutrosQuandoFalta() {
+        when(condominioRepository.getReferenceById(condominio.getId())).thenReturn(condominio);
+        when(categoriaRepository.findFirstByCondominioIdAndNomeIgnoreCase(condominio.getId(), "Outros")).thenReturn(Optional.empty());
+        when(categoriaRepository.save(any(CategoriaChamado.class))).thenAnswer(i -> i.getArgument(0));
+
+        service.listar(morador);
+
+        var criada = org.mockito.ArgumentCaptor.forClass(CategoriaChamado.class);
+        verify(categoriaRepository).save(criada.capture());
+        assertEquals("Outros", criada.getValue().getNome());
+        assertSame(condominio, criada.getValue().getCondominio());
+    }
+
+    @Test
+    void outrosNaoPodeSerRenomeadaNemExcluida() {
+        var outros = categoria("Outros");
+        when(categoriaRepository.findByIdAndCondominioId(outros.getId(), condominio.getId())).thenReturn(Optional.of(outros));
+
+        assertThrows(ConflitoException.class, () -> service.renomear(outros.getId(), new CategoriaChamadoDTO("Diversos"), admin));
+        assertThrows(ConflitoException.class, () -> service.excluir(outros.getId(), admin));
+        verify(categoriaRepository, never()).save(any());
+        verify(categoriaRepository, never()).delete(any());
     }
 
     @Test
