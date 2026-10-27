@@ -33,7 +33,7 @@ public class Chamado {
     private String prioridade; // BAIXA, NORMAL, ALTA, URGENTE
 
     @Column(nullable = false, length = 50)
-    private String status; // ABERTO, EM ANÁLISE, EM ATENDIMENTO, RESOLVIDO, ENCERRADO
+    private String status; // ABERTO, EM ANALISE, EM ATENDIMENTO, RESOLVIDO, ENCERRADO (sem acento)
 
     @Column(name = "sla_prazo")
     private LocalDateTime slaPrazo;
