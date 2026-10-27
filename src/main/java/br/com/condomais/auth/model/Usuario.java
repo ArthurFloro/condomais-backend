@@ -2,6 +2,7 @@ package br.com.condomais.auth.model;
 
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.Condominio;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
@@ -24,6 +25,9 @@ public class Usuario {
     @Column(nullable = false, length = 255)
     private String nome;
 
+    // Fora do JSON: rotas que ainda devolvem entidades (visitas, avisos, reservas, chamados) levam o Usuario
+    // junto; a API de usuários usa UsuarioResponseDTO e não depende da entidade serializada
+    @JsonIgnore
     @Column(nullable = false, unique = true, length = 14)
     private String cpf;
 
@@ -34,6 +38,7 @@ public class Usuario {
     private String telefone;
 
     // Nula até o primeiro acesso: a Administração pré-cadastra o usuário sem senha
+    @JsonIgnore
     @Column(length = 255)
     private String senha;
 

@@ -1,8 +1,8 @@
 package br.com.condomais.portaria.controller;
 
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.portaria.dto.EncomendaResponseDTO;
 import br.com.condomais.portaria.dto.RegistroEncomendaDTO;
-import br.com.condomais.portaria.model.Encomenda;
 import br.com.condomais.portaria.service.EncomendaService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,6 +11,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -21,41 +22,42 @@ public class EncomendaController {
     @Autowired
     private EncomendaService encomendaService;
 
-    private UUID getUsuarioIdLogado() {
+    private UsuarioAutenticado getUsuarioLogado() {
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        var usuarioAutenticado = (UsuarioAutenticado) authentication.getPrincipal();
-        return usuarioAutenticado.getId();
+        return (UsuarioAutenticado) authentication.getPrincipal();
     }
 
-    private UUID getCondominioIdLogado() {
-        var authentication = SecurityContextHolder.getContext().getAuthentication();
-        var usuarioAutenticado = (UsuarioAutenticado) authentication.getPrincipal();
-        return usuarioAutenticado.getCondominioId();
+    @GetMapping
+    @Operation(
+            summary = "Listar encomendas",
+            description = "Mais recentes primeiro. Portaria e administração veem as do condomínio, com filtros opcionais por status (AGUARDANDO_RETIRADA ou RETIRADA) e apartamentoId; o morador vê só as da própria unidade (apartamentoId é ignorado)."
+    )
+    public ResponseEntity<List<EncomendaResponseDTO>> listar(@RequestParam(required = false) String status,
+                                                             @RequestParam(required = false) UUID apartamentoId) {
+        return ResponseEntity.ok(encomendaService.listar(status, apartamentoId, getUsuarioLogado()));
+    }
+
+    @GetMapping("/{id}")
+    @Operation(summary = "Consultar encomenda", description = "O morador só consulta encomendas da própria unidade; as demais respondem 404.")
+    public ResponseEntity<EncomendaResponseDTO> buscar(@PathVariable UUID id) {
+        return ResponseEntity.ok(encomendaService.buscar(id, getUsuarioLogado()));
     }
 
     @PostMapping("/recebimento")
     @Operation(
-            summary = "Registrar recebimento de encomenda",
-            description = "Fluxo simplificado da V1.1 onde a portaria informa a torre/bloco e apartamento. Vincula a encomenda à unidade e registra o porteiro recebedor (RF-POR-009, RN-POR-007)[cite: 1, 4]."
+            summary = "Registrar recebimento de encomenda (portaria ou administração)",
+            description = "Fluxo simplificado da V1.1 onde a portaria informa o apartamento. Vincula a encomenda à unidade e registra o porteiro recebedor (RF-POR-009, RN-POR-007)."
     )
-    public ResponseEntity<Encomenda> registrarRecebimento(@RequestBody RegistroEncomendaDTO dados) {
-        var porteiroId = getUsuarioIdLogado();
-        var condominioId = getCondominioIdLogado();
-
-        Encomenda encomenda = encomendaService.registrarRecebimento(dados, porteiroId, condominioId);
-        return ResponseEntity.ok(encomenda);
+    public ResponseEntity<EncomendaResponseDTO> registrarRecebimento(@RequestBody RegistroEncomendaDTO dados) {
+        return ResponseEntity.ok(encomendaService.registrarRecebimento(dados, getUsuarioLogado()));
     }
 
     @PutMapping("/{id}/retirada")
     @Operation(
-            summary = "Registrar retirada de encomenda",
-            description = "Atualiza o status da encomenda para 'RETIRADA', registrando a data, hora e o porteiro responsável pela entrega ao morador (RF-POR-012, RN-POR-009)[cite: 4]."
+            summary = "Registrar retirada de encomenda (portaria ou administração)",
+            description = "Atualiza o status para RETIRADA, registrando data, hora e o porteiro responsável pela entrega (RF-POR-012, RN-POR-009). Uma encomenda já retirada responde 409."
     )
-    public ResponseEntity<Encomenda> registrarRetirada(@PathVariable UUID id) {
-        var porteiroId = getUsuarioIdLogado();
-        var condominioId = getCondominioIdLogado();
-
-        Encomenda encomenda = encomendaService.registrarRetirada(id, porteiroId, condominioId);
-        return ResponseEntity.ok(encomenda);
+    public ResponseEntity<EncomendaResponseDTO> registrarRetirada(@PathVariable UUID id) {
+        return ResponseEntity.ok(encomendaService.registrarRetirada(id, getUsuarioLogado()));
     }
 }
