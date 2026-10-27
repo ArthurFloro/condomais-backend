@@ -7,5 +7,5 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface VisitanteRepository extends JpaRepository<Visitante, UUID> {
-    Optional<Visitante> findByCpf(String cpf);
+    Optional<Visitante> findByCondominioIdAndCpf(UUID condominioId, String cpf);
 }

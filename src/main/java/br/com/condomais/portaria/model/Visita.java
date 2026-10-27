@@ -27,6 +27,20 @@ public class Visita {
     @Column(name = "horario_previsto")
     private LocalTime horarioPrevisto;
 
+    // Fim do período em que a entrada está autorizada (início em dataPrevista/horarioPrevisto)
+    @Column(name = "data_fim_prevista")
+    private LocalDate dataFimPrevista;
+
+    @Column(name = "horario_fim_previsto")
+    private LocalTime horarioFimPrevisto;
+
+    // Quando a visita foi cadastrada, e por quem: PORTARIA (portaria ou administração) ou MORADOR
+    @Column(name = "data_hora_registro")
+    private LocalDateTime dataHoraRegistro;
+
+    @Column(length = 20)
+    private String origem;
+
     @Column(name = "data_hora_entrada")
     private LocalDateTime dataHoraEntrada;
 
