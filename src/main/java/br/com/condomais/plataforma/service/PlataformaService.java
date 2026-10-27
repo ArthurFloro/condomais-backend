@@ -3,8 +3,10 @@ package br.com.condomais.plataforma.service;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.auth.service.UsuarioService;
+import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.Condominio;
 import br.com.condomais.condominio.repository.CondominioRepository;
+import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
@@ -28,6 +30,7 @@ public class PlataformaService {
 
     @Autowired private CondominioRepository condominioRepository;
     @Autowired private UsuarioRepository usuarioRepository;
+    @Autowired private OcupacaoUnidadeService ocupacaoUnidadeService;
 
     @Transactional(readOnly = true)
     public List<CondominioPlataformaDTO> listar(UsuarioAutenticado auth) {
@@ -90,11 +93,13 @@ public class PlataformaService {
         var condominio = buscarCondominio(id);
 
         Usuario novo;
+        Apartamento unidadeAnterior = null;
         if (dados.usuarioId() != null) {
             // Promoção de quem já é do condomínio: administrador não tem unidade nem vínculo
             novo = usuarioRepository.findByIdAndCondominioId(dados.usuarioId(), id)
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado neste condomínio."));
             novo.setPerfil("ADMIN");
+            unidadeAnterior = novo.getApartamento();
             novo.setApartamento(null);
             novo.setVinculo(null);
             novo.setStatus("ATIVO");
@@ -102,6 +107,8 @@ public class PlataformaService {
             novo = novoAdmin(condominio, new DadosAdminDTO(dados.nome(), dados.cpf(), dados.email(), dados.telefone()));
         }
         var adminId = usuarioRepository.save(novo).getId();
+        // Um morador promovido deixa a unidade, que pode ficar livre
+        ocupacaoUnidadeService.recalcular(unidadeAnterior);
 
         // O condomínio fica com um administrador só: os anteriores perdem o acesso, mas continuam no histórico
         usuarioRepository.findByCondominioId(id).stream()

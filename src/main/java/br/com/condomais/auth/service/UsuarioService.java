@@ -7,6 +7,7 @@ import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.repository.ApartamentoRepository;
 import br.com.condomais.condominio.repository.CondominioRepository;
+import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
@@ -37,6 +38,9 @@ public class UsuarioService {
 
     @Autowired
     private CondominioRepository condominioRepository;
+
+    @Autowired
+    private OcupacaoUnidadeService ocupacaoUnidadeService;
 
     @Transactional(readOnly = true)
     public List<UsuarioResponseDTO> listar(UsuarioAutenticado auth) {
@@ -69,7 +73,9 @@ public class UsuarioService {
         // Sem senha: o usuário a cria em /auth/primeiro-acesso
         usuario.setSenha(null);
         preencher(usuario, dados, auth);
-        return UsuarioResponseDTO.from(usuarioRepository.save(usuario));
+        var salvo = usuarioRepository.save(usuario);
+        ocupacaoUnidadeService.recalcular(salvo.getApartamento());
+        return UsuarioResponseDTO.from(salvo);
     }
 
     @Transactional
@@ -79,8 +85,12 @@ public class UsuarioService {
         if (usuario.getId().equals(auth.getId()) && !"ADMIN".equals(normalizarPerfil(dados.perfil()))) {
             throw new IllegalArgumentException("Você não pode remover o seu próprio perfil de administrador.");
         }
+        // A unidade de antes também é recalculada: o morador pode ter trocado de unidade ou deixado de ser morador
+        var unidadeAnterior = usuario.getApartamento();
         preencher(usuario, dados, auth);
-        return UsuarioResponseDTO.from(usuarioRepository.save(usuario));
+        var salvo = usuarioRepository.save(usuario);
+        ocupacaoUnidadeService.recalcular(unidadeAnterior, salvo.getApartamento());
+        return UsuarioResponseDTO.from(salvo);
     }
 
     @Transactional
@@ -91,7 +101,9 @@ public class UsuarioService {
             throw new IllegalArgumentException("Você não pode desativar o seu próprio usuário.");
         }
         usuario.setStatus(ativo ? "ATIVO" : "INATIVO");
-        return UsuarioResponseDTO.from(usuarioRepository.save(usuario));
+        var salvo = usuarioRepository.save(usuario);
+        ocupacaoUnidadeService.recalcular(salvo.getApartamento());
+        return UsuarioResponseDTO.from(salvo);
     }
 
     // ---------------------------------------------------------------------

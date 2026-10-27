@@ -8,6 +8,7 @@ import br.com.condomais.condominio.model.Condominio;
 import br.com.condomais.condominio.model.Torre;
 import br.com.condomais.condominio.repository.ApartamentoRepository;
 import br.com.condomais.condominio.repository.CondominioRepository;
+import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
@@ -36,6 +37,7 @@ class UsuarioServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private CondominioRepository condominioRepository;
+    @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
     @InjectMocks private UsuarioService service;
 
     private Condominio condominio;
@@ -91,6 +93,8 @@ class UsuarioServiceTest {
         assertEquals("101", resposta.apartamentoNumero());
         assertEquals("Torre A", resposta.torreNome());
         assertTrue(resposta.primeiroAcessoPendente());
+        // A unidade passa a ter morador: o status dela é recalculado
+        verify(ocupacaoUnidadeService).recalcular(apartamento);
     }
 
     @Test
@@ -225,5 +229,36 @@ class UsuarioServiceTest {
         assertTrue(UsuarioService.cpfValido("15729185430"));
         assertFalse(UsuarioService.cpfValido("52998224724"));
         assertFalse(UsuarioService.cpfValido("00000000000"));
+    }
+
+    @Test
+    void trocarDeUnidadeRecalculaAAntigaEANova() {
+        var antiga = apartamento();
+        var nova = apartamento();
+        var morador = usuario("MORADOR");
+        morador.setCpf(CPF_VALIDO);
+        morador.setApartamento(antiga);
+        morador.setVinculo("INQUILINO");
+        when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
+        when(usuarioRepository.findByCpf(CPF_VALIDO)).thenReturn(Optional.of(morador));
+        when(apartamentoRepository.findByIdAndCondominioId(nova.getId(), condominio.getId())).thenReturn(Optional.of(nova));
+        when(usuarioRepository.save(any())).thenAnswer(invocacao -> invocacao.getArgument(0));
+
+        service.atualizar(morador.getId(), morador(CPF_VALIDO, nova.getId()), authAdmin);
+
+        verify(ocupacaoUnidadeService).recalcular(antiga, nova);
+    }
+
+    @Test
+    void desativarMoradorRecalculaAUnidadeDele() {
+        var apartamento = apartamento();
+        var morador = usuario("MORADOR");
+        morador.setApartamento(apartamento);
+        when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
+        when(usuarioRepository.save(any())).thenAnswer(invocacao -> invocacao.getArgument(0));
+
+        service.alterarStatus(morador.getId(), false, authAdmin);
+
+        verify(ocupacaoUnidadeService).recalcular(apartamento);
     }
 }
