@@ -10,8 +10,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
 
 @Service
 public class TokenService {
@@ -41,7 +40,8 @@ public class TokenService {
     }
 
     public Instant gerarDataExpiracao() {
-        return LocalDateTime.now().plusHours(8).toInstant(ZoneOffset.of("-03:00"));
+        // Instant é absoluto: 8 horas a partir de agora, qualquer que seja o fuso do servidor
+        return Instant.now().plus(8, ChronoUnit.HOURS);
     }
 
     public String getSubject(String token){

@@ -1,7 +1,6 @@
 package br.com.condomais.portaria.service;
 
 import br.com.condomais.auth.model.Usuario;
-import br.com.condomais.auth.repository.UsuarioApartamentoRepository;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.Condominio;
@@ -35,7 +34,6 @@ class EncomendaServiceTest {
     @Mock private EncomendaRepository encomendaRepository;
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private UsuarioRepository usuarioRepository;
-    @Mock private UsuarioApartamentoRepository usuarioApartamentoRepository;
     @InjectMocks private EncomendaService service;
 
     private Condominio condominio;
@@ -171,6 +169,7 @@ class EncomendaServiceTest {
     void portariaRegistraRecebimento() {
         when(apartamentoRepository.findByIdAndCondominioId(unidade101.getId(), condominio.getId())).thenReturn(Optional.of(unidade101));
         when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
+        when(usuarioRepository.listarMoradoresAtivosDaUnidade(unidade101.getId())).thenReturn(List.of(morador));
         when(encomendaRepository.save(any(Encomenda.class))).thenAnswer(i -> i.getArgument(0));
 
         var resposta = service.registrarRecebimento(new RegistroEncomendaDTO(unidade101.getId(), " BR123 ", "caixa"), auth(porteiro));
@@ -178,6 +177,24 @@ class EncomendaServiceTest {
         assertEquals("AGUARDANDO RETIRADA", resposta.status());
         assertEquals("BR123", resposta.codigoIdentificacao());
         assertEquals("Porteiro", resposta.porteiroRecebimentoNome());
+        // O destinatário é o morador cadastrado na unidade (Usuario.apartamento)
+        assertEquals("Morador 101", resposta.moradorNome());
+        // Horário do condomínio, não do servidor
+        var agoraEmSaoPaulo = LocalDateTime.now(java.time.ZoneId.of("America/Sao_Paulo"));
+        assertTrue(java.time.Duration.between(resposta.dataHoraRecebimento(), agoraEmSaoPaulo).abs().toMinutes() < 2);
+    }
+
+    @Test
+    void unidadeSemMoradorRegistraSemDestinatario() {
+        when(apartamentoRepository.findByIdAndCondominioId(unidade102.getId(), condominio.getId())).thenReturn(Optional.of(unidade102));
+        when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
+        when(usuarioRepository.listarMoradoresAtivosDaUnidade(unidade102.getId())).thenReturn(List.of());
+        when(encomendaRepository.save(any(Encomenda.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resposta = service.registrarRecebimento(new RegistroEncomendaDTO(unidade102.getId(), "BR9", null), auth(porteiro));
+
+        assertNull(resposta.moradorNome());
+        assertEquals("102", resposta.apartamentoNumero());
     }
 
     @Test
