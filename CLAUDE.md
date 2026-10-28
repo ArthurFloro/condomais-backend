@@ -108,7 +108,10 @@ Both custom exceptions extend `IllegalArgumentException`. Bare `orElseThrow()` b
 
 ## Known gaps (agreed backlog, in priority order)
 
-1. Wire the operational modules into the front, one PR per module (encomendas first, then avisos, reservas, chamados, visitantes): in API mode the remaining ones are empty and new records stay in memory only. (The front route guard is done: `SessionAccessGate` checks `/usuarios/me` per area, a 401 or an expired token ends the session and the login shows a notice.)
+Done: the front route guard (`SessionAccessGate` checks `/usuarios/me` per area; a 401 or an expired token ends the session and the login shows a notice) and the five operational modules wired to the API in the front (encomendas, comunicados, reservas, chamados, visitas: `src/services/*Api.js` plus `operationalLoaders` in `AppDataContext`). Prestadores is the only front screen still without a backend.
+
+1. Common areas management screen for ADMIN in the front: the wizard saves the suggested areas as non-bookable, and there is no screen to create areas or turn on `reservavel`/`exigeAprovacao` afterwards, so residents can only book custom areas marked bookable in the wizard. The API already has create/edit/activate/deactivate under `/condominios/areas-comuns`.
 2. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
 3. A unit without a tower can't receive a resident through the form.
 4. Password recovery (no endpoint yet).
+5. Front gaps over existing endpoints: chamados external provider/forecast form, chamado categories management, notices "close without deleting" (needs a backend route), walk-in visit entry (`POST /portaria/visitas/entrada`).
