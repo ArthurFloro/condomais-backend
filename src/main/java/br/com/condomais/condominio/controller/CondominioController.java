@@ -49,9 +49,8 @@ public class CondominioController {
 
     @PostMapping("/areas-comuns")
     @Operation(summary = "Cadastrar área comum (somente ADMIN)", description = "Cadastra a área no condomínio do usuário autenticado e configura se é reservável ou exige aprovação; o condominioId do corpo é ignorado (RF-CON-008, RF-CON-009).")
-    public ResponseEntity<AreaComum> cadastrarAreaComum(@RequestBody AreaComumDTO dados) {
-        AreaComum area = condominioService.cadastrarAreaComum(dados, auth());
-        return ResponseEntity.ok(area);
+    public ResponseEntity<AreaComumResponseDTO> cadastrarAreaComum(@RequestBody AreaComumDTO dados) {
+        return ResponseEntity.ok(condominioService.cadastrarAreaComum(dados, auth()));
     }
 
     // ---------------------------------------------------------------------

@@ -60,18 +60,18 @@ public class CondominioService {
     }
 
     @Transactional
-    public AreaComum cadastrarAreaComum(AreaComumDTO dados, UsuarioAutenticado auth) {
+    public AreaComumResponseDTO cadastrarAreaComum(AreaComumDTO dados, UsuarioAutenticado auth) {
         exigirAdmin(auth);
+        var nome = nomeDaArea(dados);
+        // O morador escolhe a área pelo nome na reserva: dois nomes iguais seriam ambíguos
+        if (areaComumRepository.existsByCondominioIdAndNomeIgnoreCase(auth.getCondominioId(), nome)) {
+            throw new ConflitoException("Já existe uma área comum com este nome.");
+        }
         var area = new AreaComum();
-        area.setNome(dados.nome());
-        area.setDescricao(dados.descricao());
-        area.setRegras(dados.regras());
-        area.setReservavel(dados.reservavel());
-        area.setExigeAprovacao(dados.exigeAprovacao());
-        area.setCapacidade(validarCapacidade(dados.capacidade()));
+        preencherAreaComum(area, nome, dados);
         area.setCondominio(buscarCondominioDoUsuario(auth));
 
-        return areaComumRepository.save(area);
+        return AreaComumResponseDTO.from(areaComumRepository.save(area));
     }
 
     // ---------------------------------------------------------------------
@@ -193,12 +193,11 @@ public class CondominioService {
         var area = buscarAreaComumEntidade(id, auth);
 
         // A área não muda de condomínio: o condominioId do body é ignorado.
-        area.setNome(dados.nome());
-        area.setDescricao(dados.descricao());
-        area.setRegras(dados.regras());
-        area.setReservavel(dados.reservavel());
-        area.setExigeAprovacao(dados.exigeAprovacao());
-        area.setCapacidade(validarCapacidade(dados.capacidade()));
+        var nome = nomeDaArea(dados);
+        if (areaComumRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(auth.getCondominioId(), nome, id)) {
+            throw new ConflitoException("Já existe uma área comum com este nome.");
+        }
+        preencherAreaComum(area, nome, dados);
 
         return AreaComumResponseDTO.from(areaComumRepository.save(area));
     }
@@ -218,6 +217,32 @@ public class CondominioService {
     private Condominio buscarCondominioDoUsuario(UsuarioAutenticado auth) {
         return condominioRepository.findById(auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
+    }
+
+    // Reservável e aprovação são obrigatórios no banco: ausentes valem "não". Aprovação só faz sentido se reservável.
+    private void preencherAreaComum(AreaComum area, String nome, AreaComumDTO dados) {
+        var reservavel = Boolean.TRUE.equals(dados.reservavel());
+        area.setNome(nome);
+        area.setDescricao(textoOuNulo(dados.descricao()));
+        area.setRegras(textoOuNulo(dados.regras()));
+        area.setReservavel(reservavel);
+        area.setExigeAprovacao(reservavel && Boolean.TRUE.equals(dados.exigeAprovacao()));
+        area.setCapacidade(validarCapacidade(dados.capacidade()));
+    }
+
+    private static String nomeDaArea(AreaComumDTO dados) {
+        if (dados == null || dados.nome() == null || dados.nome().isBlank()) {
+            throw new IllegalArgumentException("Informe o nome da área comum.");
+        }
+        var nome = dados.nome().trim();
+        if (nome.length() > 255) {
+            throw new IllegalArgumentException("O nome da área comum deve ter no máximo 255 caracteres.");
+        }
+        return nome;
+    }
+
+    private static String textoOuNulo(String texto) {
+        return texto == null || texto.isBlank() ? null : texto.trim();
     }
 
     private AreaComum buscarAreaComumEntidade(UUID id, UsuarioAutenticado auth) {
