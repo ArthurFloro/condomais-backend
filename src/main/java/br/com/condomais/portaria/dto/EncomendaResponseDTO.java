@@ -16,6 +16,7 @@ public record EncomendaResponseDTO(
         UUID apartamentoId,
         String apartamentoNumero,
         String torreNome,
+        String moradorNome,         // destinatário: morador da unidade no momento do recebimento
         String porteiroRecebimentoNome,
         String porteiroRetiradaNome
 ) {
@@ -32,6 +33,7 @@ public record EncomendaResponseDTO(
                 apartamento.getId(),
                 apartamento.getNumero(),
                 torre != null ? torre.getNome() : null,
+                encomenda.getMorador() != null ? encomenda.getMorador().getNome() : null,
                 encomenda.getPorteiroRecebimento() != null ? encomenda.getPorteiroRecebimento().getNome() : null,
                 encomenda.getPorteiroRetirada() != null ? encomenda.getPorteiroRetirada().getNome() : null
         );

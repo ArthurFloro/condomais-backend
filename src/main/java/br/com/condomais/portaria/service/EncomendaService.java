@@ -1,6 +1,5 @@
 package br.com.condomais.portaria.service;
 
-import br.com.condomais.auth.repository.UsuarioApartamentoRepository;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.auth.service.UsuarioService;
 import br.com.condomais.condominio.repository.ApartamentoRepository;
@@ -16,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -31,6 +31,8 @@ public class EncomendaService {
     static final String AGUARDANDO = "AGUARDANDO RETIRADA";
     static final String RETIRADA = "RETIRADA";
     private static final Set<String> STATUS = Set.of(AGUARDANDO, RETIRADA);
+    // Horários das encomendas são do condomínio, não do servidor (o Render roda em UTC)
+    private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
 
     @Autowired
     private EncomendaRepository encomendaRepository;
@@ -38,8 +40,6 @@ public class EncomendaService {
     private ApartamentoRepository apartamentoRepository;
     @Autowired
     private UsuarioRepository usuarioRepository;
-    @Autowired
-    private UsuarioApartamentoRepository usuarioApartamentoRepository;
 
     @Transactional(readOnly = true)
     public List<EncomendaResponseDTO> listar(String statusInformado, UUID apartamentoId, UsuarioAutenticado auth) {
@@ -85,16 +85,15 @@ public class EncomendaService {
         encomenda.setCodigoIdentificacao(dados.codigoIdentificacao().trim());
         encomenda.setObservacao(dados.observacao());
         encomenda.setStatus(AGUARDANDO); // Status inicial simplificado
-        encomenda.setDataHoraRecebimento(LocalDateTime.now());
+        encomenda.setDataHoraRecebimento(LocalDateTime.now(FUSO));
         encomenda.setPorteiroRecebimento(porteiro); // Rastreabilidade de quem recebeu
 
-        // Verifica se existe morador cadastrado para notificação futura (V1.1)
-        var moradores = usuarioApartamentoRepository.findByApartamentoId(apartamento.getId());
-        if (!moradores.isEmpty()) {
-            // Associa ao primeiro morador principal encontrado (simplificação)
-            encomenda.setMorador(moradores.get(0).getUsuario());
-            // TODO: Aqui faremos a integração com o Módulo 4 para disparar a Notificação ao morador
-        }
+        // Destinatário: um morador ativo da unidade, de preferência o proprietário (Usuario.apartamento).
+        // Unidade sem morador cadastrado fica sem destinatário; a encomenda continua visível para a unidade.
+        // TODO: Aqui faremos a integração com o Módulo 4 para disparar a Notificação ao morador
+        usuarioRepository.listarMoradoresAtivosDaUnidade(apartamento.getId()).stream()
+                .findFirst()
+                .ifPresent(encomenda::setMorador);
 
         return EncomendaResponseDTO.from(encomendaRepository.save(encomenda));
     }
@@ -113,7 +112,7 @@ public class EncomendaService {
 
         // Atualiza status para RETIRADA e registra a rastreabilidade (RF-POR-012, RN-POR-009)
         encomenda.setStatus(RETIRADA);
-        encomenda.setDataHoraRetirada(LocalDateTime.now());
+        encomenda.setDataHoraRetirada(LocalDateTime.now(FUSO));
         encomenda.setPorteiroRetirada(porteiro);
 
         return EncomendaResponseDTO.from(encomendaRepository.save(encomenda));

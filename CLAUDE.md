@@ -52,7 +52,7 @@ Spring Boot 4.1 / Java 17 REST API for **Condo+**, a multi-tenant condominium ma
 
 There is no per-request tenant header — the condomínio is derived from the authenticated user:
 
-1. `AuthController.login` authenticates via CPF/senha (`AutenticacaoService` is the `UserDetailsService`, wraps `Usuario` in `UsuarioAutenticado`), then `TokenService.gerarToken` issues a JWT carrying `id`, `perfil`, and `condominio_id` claims (no `condominio_id` for MASTER).
+1. `AuthController.login` authenticates via CPF/senha (`AutenticacaoService` is the `UserDetailsService`, wraps `Usuario` in `UsuarioAutenticado`), then `TokenService.gerarToken` issues a JWT carrying `id`, `perfil`, and `condominio_id` claims (no `condominio_id` for MASTER), valid for 8 hours (`exp`; the front ends the session when it passes).
 2. `SecurityFilter` (a `OncePerRequestFilter`) reads the bearer token on every request, looks the user back up by CPF (the JWT subject), and puts a `UsuarioAutenticado` into `SecurityContextHolder`.
 3. Controllers that need to scope a write to the caller's condomínio/user pull it back out with a local helper, e.g.:
    ```java
@@ -79,7 +79,7 @@ There is no per-request tenant header — the condomínio is derived from the au
 
 ### Operational modules (portaria, interativo, atendimento)
 
-- Encomendas (`/portaria/encomendas`) is the first module with reads: `GET` list (newest first, `status` = `AGUARDANDO_RETIRADA`/`RETIRADA`, `apartamentoId`) and `GET /{id}`. PORTARIA and ADMIN see the whole condomínio and are the only ones who register arrival/pickup; a MORADOR only sees their own unit (taken from `Usuario.apartamento`, never from the request). Responses use `EncomendaResponseDTO`. Follow this shape for the other modules.
+- Encomendas (`/portaria/encomendas`) is the first module with reads: `GET` list (newest first, `status` = `AGUARDANDO_RETIRADA`/`RETIRADA`, `apartamentoId`) and `GET /{id}`. PORTARIA and ADMIN see the whole condomínio and are the only ones who register arrival/pickup; a MORADOR only sees their own unit (taken from `Usuario.apartamento`, never from the request). Responses use `EncomendaResponseDTO`, including `moradorNome`: the recipient is picked at registration from the unit's active residents (`UsuarioRepository.listarMoradoresAtivosDaUnidade`, owners first); the legacy `usuarios_apartamentos` table is no longer used. Times use America/Sao_Paulo. Follow this shape for the other modules.
 - Comunicados (`/interativo/avisos`) follow the same shape: `GET` list/detail, `POST`, `PUT /{id}`, `DELETE /{id}` with `AvisoResponseDTO`. ADMIN and PORTARIA publish, edit, delete and see everything (including expired; `apenasAtivos=true` filters); a MORADOR only sees active announcements (validity in America/Sao_Paulo) that are general or for their own tower (taken from their unit).
 - Reservas (`/interativo/reservas`): only a MORADOR requests (`POST`); the area row is locked (`AreaComumRepository.findParaReserva`, `PESSIMISTIC_WRITE`) so simultaneous requests cannot double-book. In an area with `exigeAprovacao`, a PROPRIETARIO (from `Usuario.vinculo`) is confirmed at once and an INQUILINO waits in `AGUARDANDO APROVACAO` until an ADMIN or the PROPRIETARIO of the same unit calls `/aprovar` or `/recusar`. The requester or an ADMIN can `/cancelar` before it starts. CANCELADA and RECUSADA free the slot. ADMIN/PORTARIA list everything, a MORADOR lists their unit's reservations, and `GET /ocupacao?areaId&data` shows taken slots without names. Dates/times use America/Sao_Paulo. The legacy `usuarios_apartamentos` table is no longer used here.
 - Chamados (`/atendimento/chamados`) and their categories (`/atendimento/categorias`): every perfil can open a ticket (a MORADOR only for their own unit or none = common area); ADMIN/PORTARIA list all, a MORADOR lists the ones they opened plus their unit's. Only ADMIN changes the status (`PUT /{id}`: ABERTO, EM ANALISE, EM ATENDIMENTO, RESOLVIDO, ENCERRADO — stored without accents, input accepts `_`/accents) and the external provider fields; anyone who can see a ticket can `POST /{id}/comentarios`. Every change is written to `HistoricoChamado`, returned in `GET /{id}`. ENCERRADO is final. The same PUT recategorizes (`categoriaId`, logged as `CATEGORIA: X -> Y`). Categories: everyone reads, only ADMIN creates/renames/deletes (409 when in use or duplicated). Every condomínio has an "Outros" category (`CategoriaChamadoService.garantirOutros`: created by the Setup Wizard, or lazily on the first category list for older condomínios) that cannot be renamed or deleted (409); a ticket opened without `categoriaId` goes to it.
@@ -108,8 +108,7 @@ Both custom exceptions extend `IllegalArgumentException`. Bare `orElseThrow()` b
 
 ## Known gaps (agreed backlog, in priority order)
 
-1. Front route guard: no session or expired token should redirect to login.
-2. Wire the operational modules into the front (avisos, encomendas, visitantes, reservas, chamados): in API mode they are empty and new records stay in memory only.
-3. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
-4. A unit without a tower can't receive a resident through the form.
-5. Password recovery (no endpoint yet).
+1. Wire the operational modules into the front, one PR per module (encomendas first, then avisos, reservas, chamados, visitantes): in API mode the remaining ones are empty and new records stay in memory only. (The front route guard is done: `SessionAccessGate` checks `/usuarios/me` per area, a 401 or an expired token ends the session and the login shows a notice.)
+2. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
+3. A unit without a tower can't receive a resident through the form.
+4. Password recovery (no endpoint yet).
