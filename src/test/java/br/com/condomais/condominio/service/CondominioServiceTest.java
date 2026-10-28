@@ -248,4 +248,49 @@ class CondominioServiceTest {
         verify(apartamentoRepository, never()).save(any());
         verify(areaComumRepository, never()).save(any());
     }
+
+    // ---------------------------------------------------------------------
+    // Áreas comuns: nome obrigatório e único, reserva e aprovação sem nulos
+    // ---------------------------------------------------------------------
+
+    @Test
+    void cadastraAreaComumComNomeLimpoESemNulos() {
+        when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
+        when(areaComumRepository.save(any(AreaComum.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resposta = service.cadastrarAreaComum(new AreaComumDTO("  Salão de Festas ", " ", "Até 22h", null, true, null, 80), admin);
+
+        assertEquals("Salão de Festas", resposta.nome());
+        assertNull(resposta.descricao());
+        assertEquals("Até 22h", resposta.regras());
+        // Sem "reservável", não há aprovação a exigir
+        assertEquals(false, resposta.reservavel());
+        assertEquals(false, resposta.exigeAprovacao());
+        assertEquals(80, resposta.capacidade());
+    }
+
+    @Test
+    void nomeVazioOuRepetidoDeAreaComumEhRecusado() {
+        when(areaComumRepository.existsByCondominioIdAndNomeIgnoreCase(condominio.getId(), "Piscina")).thenReturn(true);
+
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO(" ", null, null, true, false, null, null), admin));
+        assertThrows(ConflitoException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Piscina", null, null, true, false, null, null), admin));
+        verify(areaComumRepository, never()).save(any());
+    }
+
+    @Test
+    void editarAreaParaONomeDeOutraEhConflitoMasManterOProprioNomeNao() {
+        var area = new AreaComum();
+        area.setId(UUID.randomUUID());
+        area.setNome("Quadra");
+        area.setCondominio(condominio);
+        when(areaComumRepository.findByIdAndCondominioId(area.getId(), condominio.getId())).thenReturn(Optional.of(area));
+        when(areaComumRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(condominio.getId(), "Piscina", area.getId())).thenReturn(true);
+        when(areaComumRepository.save(area)).thenReturn(area);
+
+        assertThrows(ConflitoException.class, () -> service.atualizarAreaComum(area.getId(), new AreaComumDTO("Piscina", null, null, true, false, null, null), admin));
+        var resposta = service.atualizarAreaComum(area.getId(), new AreaComumDTO("Quadra", null, null, true, true, null, null), admin);
+        assertEquals(true, resposta.reservavel());
+        assertEquals(true, resposta.exigeAprovacao());
+    }
 }

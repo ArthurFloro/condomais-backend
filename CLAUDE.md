@@ -74,7 +74,7 @@ There is no per-request tenant header — the condomínio is derived from the au
 - Setup Wizard: a condomínio created by MASTER starts with `configuracaoInicial = PENDENTE` (also exposed in `/usuarios/me`); its ADMIN sends `POST /condominios/configuracao-inicial` (`ConfiguracaoInicialService`) with endereço/cidade/UF, tower *parameters* and common areas. The backend generates the unit numbers itself (`andar + separador + sequência` zero-padded to `digitos`), rejects repeated numbers (400), saves everything in one transaction under a `PESSIMISTIC_WRITE` lock on the condomínio row, and marks `CONCLUIDA`; a second submission gets 409. Limits are provisional constants matching the front (100 floors, 100 per floor, 5,000 units). Three `modelo`s share the same tables (stored on `Condominio.modelo`): `VERTICAL` sends `torres` (units get `andar`), `HORIZONTAL` sends `ruas` (each street is saved as a `Torre`, houses are numbered in sequence with no `andar`), `EDIFICIO` sends one `edificio` block with the tower parameters (units have no tower). Only the structure of the chosen model may be filled. `AreaComum.capacidade` is optional.
 - Uniqueness is enforced by DB indexes that Hibernate does not generate (`docs/sql/deploy/01-schema.sql`): tower name per condomínio (case-insensitive), unit number per tower, and per condomínio for units without a tower. Services check first so the client gets a 409 instead of a 500.
 - Unit status follows its residents: `OcupacaoUnidadeService.recalcular` sets OCUPADO when an active resident is linked and LIVRE when the last one leaves. Call it whenever a user's unit or status changes (`UsuarioService` and `PlataformaService.trocarAdmin` do, passing the old and the new unit). INATIVO and RESERVADO are manual and never overwritten.
-- `AreaComum` uses a soft-delete boolean (`ativo`) instead of hard deletion, since reservation history must be preserved — see the `/areas-comuns/{id}/ativar` and `/desativar` endpoints.
+- `AreaComum` uses a soft-delete boolean (`ativo`) instead of hard deletion, since reservation history must be preserved — see the `/areas-comuns/{id}/ativar` and `/desativar` endpoints. Its name is required and unique per condomínio (409; the resident picks the area by name when booking), and a missing `reservavel`/`exigeAprovacao` means false (approval only applies to bookable areas).
 - `docs/sql/` holds ad-hoc migration SQL snippets (there's no Flyway/Liquibase yet) — check there when a model change needs a matching DDL note.
 
 ### Operational modules (portaria, interativo, atendimento)
@@ -108,10 +108,9 @@ Both custom exceptions extend `IllegalArgumentException`. Bare `orElseThrow()` b
 
 ## Known gaps (agreed backlog, in priority order)
 
-Done: the front route guard (`SessionAccessGate` checks `/usuarios/me` per area; a 401 or an expired token ends the session and the login shows a notice) and the five operational modules wired to the API in the front (encomendas, comunicados, reservas, chamados, visitas: `src/services/*Api.js` plus `operationalLoaders` in `AppDataContext`). Prestadores is the only front screen still without a backend.
+Done: the front route guard (`SessionAccessGate` checks `/usuarios/me` per area; a 401 or an expired token ends the session and the login shows a notice) and the five operational modules wired to the API in the front (encomendas, comunicados, reservas, chamados, visitas: `src/services/*Api.js` plus `operationalLoaders` in `AppDataContext`). Prestadores is the only front screen still without a backend. The ADMIN also manages common areas in the front (`/admin/areas-comuns`).
 
-1. Common areas management screen for ADMIN in the front: the wizard saves the suggested areas as non-bookable, and there is no screen to create areas or turn on `reservavel`/`exigeAprovacao` afterwards, so residents can only book custom areas marked bookable in the wizard. The API already has create/edit/activate/deactivate under `/condominios/areas-comuns`.
-2. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
-3. A unit without a tower can't receive a resident through the form.
-4. Password recovery (no endpoint yet).
-5. Front gaps over existing endpoints: chamados external provider/forecast form, chamado categories management, notices "close without deleting" (needs a backend route), walk-in visit entry (`POST /portaria/visitas/entrada`).
+1. Creating PORTARIA/ADMIN users from the UI (the API already supports it).
+2. A unit without a tower can't receive a resident through the form.
+3. Password recovery (no endpoint yet).
+4. Front gaps over existing endpoints: chamados external provider/forecast form, chamado categories management, notices "close without deleting" (needs a backend route), walk-in visit entry (`POST /portaria/visitas/entrada`).
