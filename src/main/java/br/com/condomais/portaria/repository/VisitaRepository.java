@@ -22,4 +22,9 @@ public interface VisitaRepository extends JpaRepository<Visita, UUID> {
     @Query("SELECT v FROM Visita v JOIN FETCH v.visitante JOIN FETCH v.apartamento a LEFT JOIN FETCH a.torre " +
             "WHERE v.condominio.id = :condominioId AND a.id = :apartamentoId ORDER BY v.dataHoraRegistro DESC NULLS LAST")
     List<Visita> listarDaUnidade(@Param("condominioId") UUID condominioId, @Param("apartamentoId") UUID apartamentoId);
+
+    // Autorizações ainda abertas de um morador numa unidade (para revogar quando ele sai dela)
+    @Query("SELECT v FROM Visita v WHERE v.apartamento.id = :apartamentoId AND v.morador.id = :moradorId " +
+            "AND v.status IN ('PENDENTE', 'AUTORIZADO')")
+    List<Visita> listarAutorizacoesAbertas(@Param("apartamentoId") UUID apartamentoId, @Param("moradorId") UUID moradorId);
 }

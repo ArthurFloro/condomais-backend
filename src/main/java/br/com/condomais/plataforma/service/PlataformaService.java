@@ -11,12 +11,14 @@ import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
 import br.com.condomais.plataforma.dto.*;
+import br.com.condomais.portaria.service.VisitaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -31,6 +33,7 @@ public class PlataformaService {
     @Autowired private CondominioRepository condominioRepository;
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private OcupacaoUnidadeService ocupacaoUnidadeService;
+    @Autowired private VisitaService visitaService;
 
     @Transactional(readOnly = true)
     public List<CondominioPlataformaDTO> listar(UsuarioAutenticado auth) {
@@ -63,7 +66,8 @@ public class PlataformaService {
         condominio.setStatus("ATIVO");
         // O admin completa endereço, torres, unidades e áreas comuns pelo Setup Wizard
         condominio.setConfiguracaoInicial("PENDENTE");
-        condominio.setCreatedAt(LocalDateTime.now());
+        // Data do cadastro no fuso do condomínio, como os demais horários (o Render roda em UTC)
+        condominio.setCreatedAt(LocalDateTime.now(ZoneId.of("America/Sao_Paulo")));
         condominio = condominioRepository.save(condominio);
 
         usuarioRepository.save(novoAdmin(condominio, dados.admin()));
@@ -107,8 +111,9 @@ public class PlataformaService {
             novo = novoAdmin(condominio, new DadosAdminDTO(dados.nome(), dados.cpf(), dados.email(), dados.telefone()));
         }
         var adminId = usuarioRepository.save(novo).getId();
-        // Um morador promovido deixa a unidade, que pode ficar livre
+        // Um morador promovido deixa a unidade, que pode ficar livre, e as visitas que ele liberou ali perdem a validade
         ocupacaoUnidadeService.recalcular(unidadeAnterior);
+        visitaService.revogarAutorizacoesDoMorador(novo, unidadeAnterior);
 
         // O condomínio fica com um administrador só: os anteriores perdem o acesso, mas continuam no histórico
         usuarioRepository.findByCondominioId(id).stream()

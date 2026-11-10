@@ -417,4 +417,49 @@ class VisitaServiceTest {
 
         assertThrows(RecursoNaoEncontradoException.class, () -> service.registrarSaida(id, auth(porteiro)));
     }
+
+    // ---------------------------------------------------------------------
+    // Morador que sai da unidade
+    // ---------------------------------------------------------------------
+
+    @Test
+    void moradorQueSaiDaUnidadePerdeAsAutorizacoesQueAindaValem() {
+        var futura = visita(unidade101, "AUTORIZADO", agora().plusDays(1), agora().plusDays(1).plusHours(3));
+        var pendente = visitaAgora(unidade101, "PENDENTE");
+        var vencida = visita(unidade101, "AUTORIZADO", agora().minusDays(2), agora().minusDays(1));
+        when(visitaRepository.listarAutorizacoesAbertas(unidade101.getId(), morador101.getId())).thenReturn(List.of(futura, pendente, vencida));
+
+        service.revogarAutorizacoesDoMorador(morador101, unidade101);
+
+        assertEquals("RECUSADO", futura.getStatus());
+        assertEquals("RECUSADO", pendente.getStatus());
+        // A vencida continua aparecendo como expirada no histórico
+        assertEquals("AUTORIZADO", vencida.getStatus());
+        verify(visitaRepository).saveAll(List.of(futura, pendente));
+    }
+
+    @Test
+    void semUnidadeAnteriorNaoHaOQueRevogar() {
+        service.revogarAutorizacoesDoMorador(morador101, null);
+
+        verifyNoInteractions(visitaRepository);
+    }
+
+    @Test
+    void novoMoradorNaoVeAsVisitasDoOcupanteAnterior() {
+        var exMorador = usuario("MORADOR", "Ex-morador", unidade102); // mudou-se do 101 para o 102
+        var doAnterior = visitaAgora(unidade101, "RECUSADO");
+        doAnterior.setMorador(exMorador);
+        var daPortaria = visitaAgora(unidade101, "PENDENTE"); // sem responsável: é da unidade
+        var dele = visitaAgora(unidade101, "AUTORIZADO");
+        dele.setMorador(morador101);
+        when(usuarioRepository.findById(morador101.getId())).thenReturn(Optional.of(morador101));
+        when(visitaRepository.listarDaUnidade(condominio.getId(), unidade101.getId())).thenReturn(List.of(doAnterior, daPortaria, dele));
+        when(visitaRepository.findByIdAndCondominioId(doAnterior.getId(), condominio.getId())).thenReturn(Optional.of(doAnterior));
+
+        var ids = service.listar(null, null, null, auth(morador101)).stream().map(v -> v.id()).toList();
+
+        assertEquals(List.of(daPortaria.getId(), dele.getId()), ids);
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.buscar(doAnterior.getId(), auth(morador101)));
+    }
 }
