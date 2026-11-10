@@ -20,6 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -37,6 +38,8 @@ import java.util.UUID;
  * - Só a portaria/admin registra a entrada (AUTORIZADO e dentro do período) e a saída. A entrada imediata
  *   (POST /entrada) continua para o visitante que chega sem cadastro prévio.
  * - PENDENTE ou AUTORIZADO com o período vencido aparece como EXPIRADO (calculado, não gravado).
+ * - O período de uma autorização vai até 30 dias. O visitante é um só por CPF no condomínio: só a portaria e
+ *   a administração, que conferem o documento, corrigem o nome dele; o morador não renomeia o visitante dos outros.
  * - Portaria e administração veem todas; o morador, as da própria unidade, menos as de quem já morou nela.
  * - Quando o morador sai da unidade (muda, é desativado ou deixa de ser morador), as autorizações dele ali que
  *   ainda valem viram RECUSADO: o novo ocupante não herda visitantes liberados pelo anterior (CONDO-11.4).
@@ -53,6 +56,8 @@ public class VisitaService {
     private static final Set<String> STATUS = Set.of(PENDENTE, AUTORIZADO, RECUSADO, ENTROU, SAIU, EXPIRADO);
     // Horários das visitas são do condomínio, não do servidor (o Render roda em UTC)
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    // Autorização é por visita, não permanente (CONDO-07): o período cobre no máximo uma estadia curta
+    static final Duration PERIODO_MAXIMO = Duration.ofDays(30);
 
     @Autowired private VisitaRepository visitaRepository;
     @Autowired private VisitanteRepository visitanteRepository;
@@ -125,13 +130,16 @@ public class VisitaService {
         if (!fim.isAfter(inicio)) {
             throw new IllegalArgumentException("O término do período precisa ser depois do início.");
         }
+        if (Duration.between(inicio, fim).compareTo(PERIODO_MAXIMO) > 0) {
+            throw new IllegalArgumentException("Uma autorização de visita vale por no máximo 30 dias.");
+        }
         var agora = agora();
         if (!fim.isAfter(agora)) {
             throw new IllegalArgumentException("O período informado já terminou.");
         }
 
         var visita = new Visita();
-        visita.setVisitante(visitanteDoCondominio(dados.cpf(), dados.nome(), dados.telefone(), apartamento.getCondominio()));
+        visita.setVisitante(visitanteDoCondominio(dados.cpf(), dados.nome(), dados.telefone(), apartamento.getCondominio(), !isMorador(auth)));
         visita.setApartamento(apartamento);
         visita.setCondominio(apartamento.getCondominio());
         visita.setMorador(responsavel);
@@ -209,7 +217,7 @@ public class VisitaService {
         var agora = agora();
 
         var visita = new Visita();
-        visita.setVisitante(visitanteDoCondominio(dados.cpf(), dados.nome(), dados.telefone(), apartamento.getCondominio()));
+        visita.setVisitante(visitanteDoCondominio(dados.cpf(), dados.nome(), dados.telefone(), apartamento.getCondominio(), true));
         visita.setApartamento(apartamento);
         visita.setCondominio(apartamento.getCondominio());
         visita.setStatus(ENTROU);
@@ -284,20 +292,24 @@ public class VisitaService {
         return morador;
     }
 
-    // Busca o visitante pelo CPF no condomínio, ou cadastra; nome e telefone ficam com o que foi informado agora
-    private Visitante visitanteDoCondominio(String cpfInformado, String nome, String telefone, Condominio condominio) {
+    // Busca o visitante pelo CPF no condomínio, ou cadastra. O cadastro é um só para todas as unidades: quem
+    // não confere documento (o morador) não troca o nome nem o telefone que já estão lá, só preenche o que falta.
+    private Visitante visitanteDoCondominio(String cpfInformado, String nome, String telefone, Condominio condominio, boolean podeCorrigir) {
         if (nome == null || nome.isBlank()) {
             throw new IllegalArgumentException("Informe o nome do visitante.");
         }
         var cpf = UsuarioService.formatarCpf(cpfInformado);
-        var visitante = visitanteRepository.findByCondominioIdAndCpf(condominio.getId(), cpf).orElseGet(() -> {
+        var existente = visitanteRepository.findByCondominioIdAndCpf(condominio.getId(), cpf);
+        var visitante = existente.orElseGet(() -> {
             var novo = new Visitante();
             novo.setCpf(cpf);
             novo.setCondominio(condominio);
             return novo;
         });
-        visitante.setNome(nome.trim());
-        if (telefone != null && !telefone.isBlank()) visitante.setTelefone(telefone.trim());
+        var corrige = podeCorrigir || existente.isEmpty();
+        if (corrige) visitante.setNome(nome.trim());
+        var temTelefone = visitante.getTelefone() != null && !visitante.getTelefone().isBlank();
+        if (telefone != null && !telefone.isBlank() && (corrige || !temTelefone)) visitante.setTelefone(telefone.trim());
         return visitanteRepository.save(visitante);
     }
 
