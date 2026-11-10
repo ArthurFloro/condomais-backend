@@ -7,6 +7,6 @@ ALTER TABLE reservas ADD COLUMN IF NOT EXISTS data_fim date;
 UPDATE reservas SET data_fim = data_reserva WHERE data_fim IS NULL;
 
 -- 2) DEPOIS que a versão nova estiver no ar: preenche o que a versão antiga gravou no meio do caminho
---    e torna a coluna obrigatória.
--- ALTER TABLE reservas ALTER COLUMN data_fim SET NOT NULL;
+--    e torna a coluna obrigatória. Nesta ordem: o SET NOT NULL falha se ainda houver data_fim nula.
 -- UPDATE reservas SET data_fim = data_reserva WHERE data_fim IS NULL;
+-- ALTER TABLE reservas ALTER COLUMN data_fim SET NOT NULL;
