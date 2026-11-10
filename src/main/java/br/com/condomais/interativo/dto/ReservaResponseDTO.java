@@ -14,7 +14,8 @@ public record ReservaResponseDTO(
         LocalDate dataReserva,
         LocalTime horarioInicio,
         LocalTime horarioFim,
-        String status,              // CONFIRMADA, AGUARDANDO APROVACAO, CANCELADA ou RECUSADA
+        LocalDate dataFim,          // dia seguinte quando a reserva passa da meia-noite
+        String status,             // CONFIRMADA, AGUARDANDO APROVACAO, CANCELADA ou RECUSADA
         String moradorNome,
         String apartamentoNumero,
         String torreNome,
@@ -31,6 +32,7 @@ public record ReservaResponseDTO(
                 reserva.getDataReserva(),
                 reserva.getHorarioInicio(),
                 reserva.getHorarioFim(),
+                reserva.getDataFim() != null ? reserva.getDataFim() : reserva.getDataReserva(),
                 reserva.getStatus(),
                 morador != null ? morador.getNome() : null,
                 apartamento != null ? apartamento.getNumero() : null,

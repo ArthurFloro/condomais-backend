@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -28,6 +29,8 @@ import java.util.UUID;
  * Reservas de áreas comuns do condomínio do token.
  * - O morador solicita. Em área que exige aprovação, o proprietário é confirmado na hora e o inquilino
  *   fica AGUARDANDO APROVACAO até o admin ou o proprietário da mesma unidade aprovar ou recusar.
+ * - A reserva pode passar da meia-noite (22h às 02h, com dataFim no dia seguinte), até 24 horas; o conflito
+ *   compara data e hora completas.
  * - Quem pediu (ou o admin) cancela enquanto a reserva não passou.
  * - Administração e portaria veem todas; o morador vê as da própria unidade. A agenda de uma área
  *   (horários ocupados, sem nomes) é aberta a todos do condomínio.
@@ -42,6 +45,8 @@ public class ReservaService {
     private static final Set<String> STATUS = Set.of(CONFIRMADA, AGUARDANDO, CANCELADA, RECUSADA);
     // Datas e horários das reservas são do condomínio, não do servidor (o Render roda em UTC)
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
+    // Passar da meia-noite não pode virar reserva de vários dias seguidos
+    static final Duration DURACAO_MAXIMA = Duration.ofHours(24);
 
     @Autowired private ReservaRepository reservaRepository;
     @Autowired private AreaComumRepository areaComumRepository;
@@ -64,7 +69,7 @@ public class ReservaService {
         }
         return reservas.stream()
                 .filter(r -> areaId == null || r.getArea().getId().equals(areaId))
-                .filter(r -> data == null || r.getDataReserva().equals(data))
+                .filter(r -> data == null || cobre(r, data))
                 .filter(r -> status == null || status.equals(r.getStatus()))
                 .map(ReservaResponseDTO::from)
                 .toList();
@@ -87,7 +92,7 @@ public class ReservaService {
         areaComumRepository.findByIdAndCondominioId(areaId, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Área comum não encontrada."));
         return reservaRepository.listarOcupacao(auth.getCondominioId(), areaId, data).stream()
-                .map(r -> new HorarioOcupadoDTO(r.getHorarioInicio(), r.getHorarioFim(), r.getStatus()))
+                .map(r -> new HorarioOcupadoDTO(r.getDataReserva(), r.getHorarioInicio(), dataFim(r), r.getHorarioFim(), r.getStatus()))
                 .toList();
     }
 
@@ -103,10 +108,19 @@ public class ReservaService {
         if (dados.areaId() == null || dados.dataReserva() == null || dados.horarioInicio() == null || dados.horarioFim() == null) {
             throw new IllegalArgumentException("Informe a área, a data e os horários de início e fim.");
         }
-        if (!dados.horarioInicio().isBefore(dados.horarioFim())) {
-            throw new IllegalArgumentException("O horário de início deve ser antes do horário de fim.");
+        // Sem dataFim a reserva termina no mesmo dia; para passar da meia-noite o cliente manda o dia seguinte
+        var dataFim = dados.dataFim() != null ? dados.dataFim() : dados.dataReserva();
+        var inicio = LocalDateTime.of(dados.dataReserva(), dados.horarioInicio());
+        var fim = LocalDateTime.of(dataFim, dados.horarioFim());
+        if (!inicio.isBefore(fim)) {
+            throw new IllegalArgumentException(dados.dataFim() == null
+                    ? "O horário de início deve ser antes do horário de fim. Para passar da meia-noite, informe a data de fim."
+                    : "O fim da reserva deve ser depois do início.");
         }
-        if (LocalDateTime.of(dados.dataReserva(), dados.horarioInicio()).isBefore(agora())) {
+        if (Duration.between(inicio, fim).compareTo(DURACAO_MAXIMA) > 0) {
+            throw new IllegalArgumentException("Uma reserva pode durar no máximo 24 horas.");
+        }
+        if (inicio.isBefore(agora())) {
             throw new IllegalArgumentException("Não é possível reservar um horário que já passou.");
         }
 
@@ -121,7 +135,7 @@ public class ReservaService {
         if (!area.getReservavel()) {
             throw new IllegalArgumentException("Esta área não está configurada como reservável (RN-RES-001).");
         }
-        if (reservaRepository.existeConflitoDeHorario(area.getId(), dados.dataReserva(), dados.horarioInicio(), dados.horarioFim())) {
+        if (reservaRepository.existeConflitoDeHorario(area.getId(), dados.dataReserva(), dados.horarioInicio(), dataFim, dados.horarioFim())) {
             throw new ConflitoException("Horário indisponível. Já existe uma reserva conflitante (RN-RES-002).");
         }
 
@@ -135,6 +149,7 @@ public class ReservaService {
         reserva.setCondominio(area.getCondominio());
         reserva.setDataReserva(dados.dataReserva());
         reserva.setHorarioInicio(dados.horarioInicio());
+        reserva.setDataFim(dataFim);
         reserva.setHorarioFim(dados.horarioFim());
 
         // Regra especial da V1.1: em área que exige aprovação, o proprietário confirma direto e o
@@ -208,6 +223,16 @@ public class ReservaService {
     private Usuario usuarioDe(UsuarioAutenticado auth) {
         return usuarioRepository.findById(auth.getId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+    }
+
+    // Reserva antiga (antes da coluna data_fim) termina no próprio dia
+    private static LocalDate dataFim(Reserva reserva) {
+        return reserva.getDataFim() != null ? reserva.getDataFim() : reserva.getDataReserva();
+    }
+
+    // A reserva aparece no dia em que começa e, se passar da meia-noite, também no dia em que termina
+    private static boolean cobre(Reserva reserva, LocalDate data) {
+        return !data.isBefore(reserva.getDataReserva()) && !data.isAfter(dataFim(reserva));
     }
 
     // Unidade comparada pelo cadastro atual dos dois moradores
