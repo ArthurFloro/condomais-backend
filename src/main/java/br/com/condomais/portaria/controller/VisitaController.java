@@ -50,27 +50,27 @@ public class VisitaController {
     @PostMapping
     @Operation(
             summary = "Cadastrar visitante com período de entrada",
-            description = "O morador autoriza para a própria unidade (apartamentoId, moradorId e autorizado são ignorados) e a visita já nasce AUTORIZADO. A portaria ou a administração informa a unidade e, opcionalmente, o morador responsável: com autorizado=true nasce AUTORIZADO, senão PENDENTE. O visitante é reaproveitado pelo CPF dentro do condomínio."
+            description = "O morador autoriza para a própria unidade (apartamentoId, moradorId e autorizado são ignorados) e a visita já nasce AUTORIZADO. A portaria informa a unidade e, opcionalmente, o morador responsável: com autorizado=true nasce AUTORIZADO, senão PENDENTE. O visitante é reaproveitado pelo CPF dentro do condomínio."
     )
     public ResponseEntity<VisitaResponseDTO> cadastrar(@RequestBody AutorizacaoVisitaDTO dados) {
         return ResponseEntity.ok(visitaService.cadastrar(dados, getUsuarioLogado()));
     }
 
     @PutMapping("/{id}/autorizar")
-    @Operation(summary = "Autorizar visita pendente", description = "Portaria, administração ou morador da unidade. Uma visita que não está pendente, ou com o período vencido, responde 409.")
+    @Operation(summary = "Autorizar visita pendente", description = "Portaria ou morador da unidade (a administração só consulta). Uma visita que não está pendente, ou com o período vencido, responde 409.")
     public ResponseEntity<VisitaResponseDTO> autorizar(@PathVariable UUID id) {
         return ResponseEntity.ok(visitaService.autorizar(id, getUsuarioLogado()));
     }
 
     @PutMapping("/{id}/recusar")
-    @Operation(summary = "Recusar visita", description = "Portaria, administração ou morador da unidade. Vale para visitas pendentes ou autorizadas que ainda não entraram (revoga a autorização).")
+    @Operation(summary = "Recusar visita", description = "Portaria ou morador da unidade (a administração só consulta). Vale para visitas pendentes ou autorizadas que ainda não entraram (revoga a autorização).")
     public ResponseEntity<VisitaResponseDTO> recusar(@PathVariable UUID id) {
         return ResponseEntity.ok(visitaService.recusar(id, getUsuarioLogado()));
     }
 
     @PutMapping("/{id}/entrada")
     @Operation(
-            summary = "Registrar entrada de visita autorizada (portaria ou administração)",
+            summary = "Registrar entrada de visita autorizada (portaria)",
             description = "Exige status AUTORIZADO e o horário atual dentro do período; registra data, hora e o porteiro responsável (RF-POR-006, RF-POR-014). Fora disso, 409."
     )
     public ResponseEntity<VisitaResponseDTO> registrarEntrada(@PathVariable UUID id) {
@@ -79,7 +79,7 @@ public class VisitaController {
 
     @PostMapping("/entrada")
     @Operation(
-            summary = "Registrar entrada imediata (portaria ou administração)",
+            summary = "Registrar entrada imediata (portaria)",
             description = "Para o visitante que chega sem cadastro prévio: cadastra (ou reaproveita pelo CPF) e já registra a entrada, vinculando ao apartamento e ao porteiro responsável (RF-POR-006, RF-POR-014)."
     )
     public ResponseEntity<VisitaResponseDTO> registrarEntradaImediata(@RequestBody RegistroEntradaDTO dados) {
@@ -88,7 +88,7 @@ public class VisitaController {
 
     @PutMapping("/{id}/saida")
     @Operation(
-            summary = "Registrar saída de visitante (portaria ou administração)",
+            summary = "Registrar saída de visitante (portaria)",
             description = "Atualiza o status para SAIU, registrando a data/hora e o porteiro responsável pela saída (RF-POR-007, RF-POR-014). Só para quem entrou e ainda não saiu; senão, 409."
     )
     public ResponseEntity<VisitaResponseDTO> registrarSaida(@PathVariable UUID id) {

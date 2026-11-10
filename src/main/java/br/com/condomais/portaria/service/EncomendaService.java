@@ -21,7 +21,8 @@ import java.util.Set;
 import java.util.UUID;
 
 /**
- * Encomendas do condomínio do token. A portaria (e o admin) registra a chegada e a retirada e vê todas;
+ * Encomendas do condomínio do token. Só a portaria registra a chegada e a retirada; ela e a administração
+ * (que só consulta, CONDO-12) veem todas;
  * o morador só consulta as da própria unidade. Uma encomenda de outro condomínio, ou de outra unidade
  * para o morador, responde 404, como se não existisse.
  */
@@ -68,7 +69,7 @@ public class EncomendaService {
 
     @Transactional
     public EncomendaResponseDTO registrarRecebimento(RegistroEncomendaDTO dados, UsuarioAutenticado auth) {
-        exigirPortariaOuAdmin(auth);
+        exigirPortaria(auth);
         if (dados.codigoIdentificacao() == null || dados.codigoIdentificacao().isBlank()) {
             throw new IllegalArgumentException("Informe o código de identificação da encomenda.");
         }
@@ -100,7 +101,7 @@ public class EncomendaService {
 
     @Transactional
     public EncomendaResponseDTO registrarRetirada(UUID encomendaId, UsuarioAutenticado auth) {
-        exigirPortariaOuAdmin(auth);
+        exigirPortaria(auth);
         var encomenda = encomendaRepository.findByIdAndCondominioId(encomendaId, auth.getCondominioId())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Encomenda não encontrada."));
         if (RETIRADA.equals(encomenda.getStatus())) {
@@ -150,11 +151,10 @@ public class EncomendaService {
         return "MORADOR".equals(UsuarioService.normalizarPerfil(auth.getPerfil()));
     }
 
-    // Enquanto não há autorização por perfil no SecurityConfig, o registro de encomendas checa aqui
-    private static void exigirPortariaOuAdmin(UsuarioAutenticado auth) {
-        var perfil = UsuarioService.normalizarPerfil(auth.getPerfil());
-        if (!"PORTARIA".equals(perfil) && !"ADMIN".equals(perfil)) {
-            throw new SecurityException("Apenas a portaria ou a administração registra encomendas.");
+    // A administração consulta, mas não opera a portaria (CONDO-12: "consultar, mas não executar")
+    private static void exigirPortaria(UsuarioAutenticado auth) {
+        if (!"PORTARIA".equals(UsuarioService.normalizarPerfil(auth.getPerfil()))) {
+            throw new SecurityException("Apenas a portaria registra o recebimento e a retirada de encomendas.");
         }
     }
 }

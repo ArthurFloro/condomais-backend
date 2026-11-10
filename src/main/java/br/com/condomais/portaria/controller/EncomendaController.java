@@ -45,7 +45,7 @@ public class EncomendaController {
 
     @PostMapping("/recebimento")
     @Operation(
-            summary = "Registrar recebimento de encomenda (portaria ou administração)",
+            summary = "Registrar recebimento de encomenda (portaria)",
             description = "Fluxo simplificado da V1.1 onde a portaria informa o apartamento. Vincula a encomenda à unidade e registra o porteiro recebedor (RF-POR-009, RN-POR-007)."
     )
     public ResponseEntity<EncomendaResponseDTO> registrarRecebimento(@RequestBody RegistroEncomendaDTO dados) {
@@ -54,7 +54,7 @@ public class EncomendaController {
 
     @PutMapping("/{id}/retirada")
     @Operation(
-            summary = "Registrar retirada de encomenda (portaria ou administração)",
+            summary = "Registrar retirada de encomenda (portaria)",
             description = "Atualiza o status para RETIRADA, registrando data, hora e o porteiro responsável pela entrega (RF-POR-012, RN-POR-009). Uma encomenda já retirada responde 409."
     )
     public ResponseEntity<EncomendaResponseDTO> registrarRetirada(@PathVariable UUID id) {

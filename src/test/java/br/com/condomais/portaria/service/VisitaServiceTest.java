@@ -376,9 +376,10 @@ class VisitaServiceTest {
             when(visitaRepository.findByIdAndCondominioId(v.getId(), condominio.getId())).thenReturn(Optional.of(v));
         }
         when(visitaRepository.save(any(Visita.class))).thenAnswer(i -> i.getArgument(0));
+        when(usuarioRepository.findById(morador101.getId())).thenReturn(Optional.of(morador101));
 
         assertEquals("RECUSADO", service.recusar(pendente.getId(), auth(porteiro)).status());
-        assertEquals("RECUSADO", service.recusar(autorizada.getId(), auth(admin)).status());
+        assertEquals("RECUSADO", service.recusar(autorizada.getId(), auth(morador101)).status());
         assertThrows(ConflitoException.class, () -> service.recusar(entrou.getId(), auth(porteiro)));
     }
 
@@ -448,13 +449,26 @@ class VisitaServiceTest {
     }
 
     @Test
-    void entradaESaidaSoPelaPortariaOuAdmin() {
+    void entradaESaidaSoPelaPortaria() {
         var id = UUID.randomUUID();
-        assertThrows(SecurityException.class, () -> service.registrarEntrada(id, auth(morador101)));
-        assertThrows(SecurityException.class, () -> service.registrarSaida(id, auth(morador101)));
-        assertThrows(SecurityException.class,
-                () -> service.registrarEntradaImediata(new RegistroEntradaDTO(CPF, "X", null, unidade101.getId(), null), auth(morador101)));
+        for (var quem : List.of(morador101, admin)) {
+            assertThrows(SecurityException.class, () -> service.registrarEntrada(id, auth(quem)));
+            assertThrows(SecurityException.class, () -> service.registrarSaida(id, auth(quem)));
+            assertThrows(SecurityException.class,
+                    () -> service.registrarEntradaImediata(new RegistroEntradaDTO(CPF, "X", null, unidade101.getId(), null), auth(quem)));
+        }
         verifyNoInteractions(visitaRepository);
+    }
+
+    @Test
+    void adminSoConsultaNaoCadastraNemDecideVisitas() {
+        var id = UUID.randomUUID();
+        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+
+        assertThrows(SecurityException.class, () -> service.cadastrar(pedido(unidade101.getId(), null, true), auth(admin)));
+        assertThrows(SecurityException.class, () -> service.autorizar(id, auth(admin)));
+        assertThrows(SecurityException.class, () -> service.recusar(id, auth(admin)));
+        verifyNoInteractions(visitaRepository, visitanteRepository);
     }
 
     @Test
