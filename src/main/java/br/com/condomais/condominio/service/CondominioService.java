@@ -29,15 +29,17 @@ public class CondominioService {
     @Autowired private TorreRepository torreRepository;
     @Autowired private ApartamentoRepository apartamentoRepository;
     @Autowired private AreaComumRepository areaComumRepository;
+    @Autowired private OcupacaoUnidadeService ocupacaoUnidadeService;
 
     @Transactional
     public Torre cadastrarTorre(TorreDTO dados, UsuarioAutenticado auth) {
         exigirAdmin(auth);
-        if (torreRepository.existsByCondominioIdAndNomeIgnoreCase(auth.getCondominioId(), dados.nome())) {
+        var nome = nomeDaTorre(dados);
+        if (torreRepository.existsByCondominioIdAndNomeIgnoreCase(auth.getCondominioId(), nome)) {
             throw new ConflitoException("Já existe uma torre com este nome neste condomínio.");
         }
         var torre = new Torre();
-        torre.setNome(dados.nome());
+        torre.setNome(nome);
         torre.setCondominio(buscarCondominioDoUsuario(auth));
         return torreRepository.save(torre);
     }
@@ -46,15 +48,16 @@ public class CondominioService {
     public Apartamento cadastrarApartamento(ApartamentoDTO dados, UsuarioAutenticado auth) {
         exigirAdmin(auth);
         var apartamento = new Apartamento();
-        apartamento.setNumero(dados.numero());
+        apartamento.setNumero(numeroDaUnidade(dados));
         apartamento.setAndar(validarAndar(dados.andar()));
-        apartamento.setStatus(dados.status().toUpperCase());
         apartamento.setCondominio(buscarCondominioDoUsuario(auth));
 
         if (dados.torreId() != null) {
             apartamento.setTorre(buscarTorreEntidade(dados.torreId(), auth));
         }
         exigirNumeroLivre(apartamento, null);
+        // Unidade nova não tem morador: OCUPADO só chega com o primeiro morador vinculado
+        apartamento.setStatus(ocupacaoUnidadeService.statusEscolhido(apartamento, dados.status()));
 
         return apartamentoRepository.save(apartamento);
     }
@@ -111,10 +114,11 @@ public class CondominioService {
         exigirAdmin(auth);
         var torre = buscarTorreEntidade(id, auth);
         // A torre não muda de condomínio: o condominioId do body é ignorado.
-        if (torreRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(auth.getCondominioId(), dados.nome(), id)) {
+        var nome = nomeDaTorre(dados);
+        if (torreRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(auth.getCondominioId(), nome, id)) {
             throw new ConflitoException("Já existe uma torre com este nome neste condomínio.");
         }
-        torre.setNome(dados.nome());
+        torre.setNome(nome);
         return TorreResponseDTO.from(torreRepository.save(torre));
     }
 
@@ -152,14 +156,15 @@ public class CondominioService {
         exigirAdmin(auth);
         var apartamento = buscarApartamentoEntidade(id, auth);
 
-        apartamento.setNumero(dados.numero());
+        apartamento.setNumero(numeroDaUnidade(dados));
         apartamento.setAndar(validarAndar(dados.andar()));
-        apartamento.setStatus(dados.status().toUpperCase());
 
         // O apartamento não muda de condomínio (condominioId do body é ignorado),
         // mas pode trocar de torre desde que ela pertença ao mesmo condomínio.
         apartamento.setTorre(dados.torreId() != null ? buscarTorreEntidade(dados.torreId(), auth) : null);
         exigirNumeroLivre(apartamento, id);
+        // O status não pode contradizer os moradores (LIVRE com morador ativo, OCUPADO sem nenhum)
+        apartamento.setStatus(ocupacaoUnidadeService.statusEscolhido(apartamento, dados.status()));
 
         return ApartamentoResponseDTO.from(apartamentoRepository.save(apartamento));
     }
@@ -239,6 +244,29 @@ public class CondominioService {
             throw new IllegalArgumentException("O nome da área comum deve ter no máximo 255 caracteres.");
         }
         return nome;
+    }
+
+    // Nome e número são obrigatórios no banco: sem eles a resposta era um 500
+    private static String nomeDaTorre(TorreDTO dados) {
+        if (dados == null || dados.nome() == null || dados.nome().isBlank()) {
+            throw new IllegalArgumentException("Informe o nome da torre.");
+        }
+        var nome = dados.nome().trim();
+        if (nome.length() > 255) {
+            throw new IllegalArgumentException("O nome da torre deve ter no máximo 255 caracteres.");
+        }
+        return nome;
+    }
+
+    private static String numeroDaUnidade(ApartamentoDTO dados) {
+        if (dados == null || dados.numero() == null || dados.numero().isBlank()) {
+            throw new IllegalArgumentException("Informe o número da unidade.");
+        }
+        var numero = dados.numero().trim();
+        if (numero.length() > 50) {
+            throw new IllegalArgumentException("O número da unidade deve ter no máximo 50 caracteres.");
+        }
+        return numero;
     }
 
     private static String textoOuNulo(String texto) {

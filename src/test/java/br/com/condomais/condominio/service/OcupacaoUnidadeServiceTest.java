@@ -3,6 +3,7 @@ package br.com.condomais.condominio.service;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.repository.ApartamentoRepository;
+import br.com.condomais.core.exception.ConflitoException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -12,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -67,7 +69,7 @@ class OcupacaoUnidadeServiceTest {
     }
 
     @Test
-    void inativaEReservadaSaoManuaisENaoMudam() {
+    void inativaEReservadaSemMoradorNaoMudam() {
         var inativa = unidade("INATIVO");
         var reservada = unidade("reservado");
 
@@ -75,7 +77,59 @@ class OcupacaoUnidadeServiceTest {
 
         assertEquals("INATIVO", inativa.getStatus());
         assertEquals("reservado", reservada.getStatus());
-        verifyNoInteractions(usuarioRepository, apartamentoRepository);
+        verify(apartamentoRepository, never()).save(any());
+    }
+
+    @Test
+    void moradorVinculadoAUnidadeReservadaOuInativaADeixaOcupada() {
+        var reservada = unidade("RESERVADO");
+        when(usuarioRepository.existeMoradorAtivoNaUnidade(reservada.getId())).thenReturn(true);
+
+        service.recalcular(reservada);
+
+        assertEquals("OCUPADO", reservada.getStatus());
+    }
+
+    // ---------------------------------------------------------------------
+    // Status escolhido pelo admin
+    // ---------------------------------------------------------------------
+
+    @Test
+    void adminNaoMarcaComoLivreUmaUnidadeComMorador() {
+        var ocupada = unidade("OCUPADO");
+        when(usuarioRepository.existeMoradorAtivoNaUnidade(ocupada.getId())).thenReturn(true);
+
+        assertThrows(ConflitoException.class, () -> service.statusEscolhido(ocupada, "LIVRE"));
+        assertThrows(ConflitoException.class, () -> service.statusEscolhido(ocupada, "INATIVO"));
+        assertThrows(ConflitoException.class, () -> service.statusEscolhido(ocupada, "RESERVADO"));
+        assertEquals("OCUPADO", service.statusEscolhido(ocupada, "ocupado"));
+    }
+
+    @Test
+    void adminNaoMarcaComoOcupadaUmaUnidadeSemMorador() {
+        var livre = unidade("LIVRE");
+        when(usuarioRepository.existeMoradorAtivoNaUnidade(livre.getId())).thenReturn(false);
+
+        assertThrows(ConflitoException.class, () -> service.statusEscolhido(livre, "OCUPADO"));
+        assertEquals("RESERVADO", service.statusEscolhido(livre, "reservado"));
+        assertEquals("INATIVO", service.statusEscolhido(livre, "INATIVO"));
+    }
+
+    @Test
+    void unidadeNovaNaoNasceOcupada() {
+        var nova = new Apartamento();
+
+        assertEquals("LIVRE", service.statusEscolhido(nova, null));
+        assertThrows(ConflitoException.class, () -> service.statusEscolhido(nova, "OCUPADO"));
+        verifyNoInteractions(usuarioRepository);
+    }
+
+    @Test
+    void statusInventadoEhRecusadoEAusenteMantemOAtual() {
+        var reservada = unidade("RESERVADO");
+
+        assertThrows(IllegalArgumentException.class, () -> service.statusEscolhido(reservada, "DESOCUPADO"));
+        assertEquals("RESERVADO", service.statusEscolhido(reservada, " "));
     }
 
     @Test

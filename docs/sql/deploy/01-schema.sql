@@ -107,6 +107,7 @@ BEGIN;
     );
 
     create table reservas (
+        data_fim date not null,
         data_reserva date not null,
         horario_fim time(0) not null,
         horario_inicio time(0) not null,

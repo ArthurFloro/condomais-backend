@@ -23,6 +23,10 @@ public class Reserva {
     @Column(name = "data_reserva", nullable = false)
     private LocalDate dataReserva;
 
+    // Dia em que a reserva termina: o dia seguinte quando passa da meia-noite (22h às 02h)
+    @Column(name = "data_fim", nullable = false)
+    private LocalDate dataFim;
+
     @Column(name = "horario_inicio", nullable = false)
     private LocalTime horarioInicio;
 

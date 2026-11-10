@@ -41,7 +41,7 @@ public class ReservaController {
     }
 
     @GetMapping("/ocupacao")
-    @Operation(summary = "Horários ocupados de uma área num dia", description = "Agenda para escolher um horário livre: só início, fim e status das reservas que ocupam, sem dizer de quem são.")
+    @Operation(summary = "Horários ocupados de uma área num dia", description = "Agenda para escolher um horário livre: só datas, início, fim e status das reservas que ocupam, sem dizer de quem são. Inclui a reserva que começou na véspera e passa da meia-noite.")
     public ResponseEntity<List<HorarioOcupadoDTO>> ocupacao(@RequestParam UUID areaId,
                                                             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate data) {
         return ResponseEntity.ok(reservaService.ocupacao(areaId, data, getUsuarioLogado()));
@@ -56,7 +56,7 @@ public class ReservaController {
     @PostMapping
     @Operation(
             summary = "Solicitar reserva de área comum (morador)",
-            description = "Verifica conflito de horário. Em área que exige aprovação, o proprietário confirma direto e o inquilino fica AGUARDANDO APROVACAO (RF-RES-001, RF-RES-004, V1.1)."
+            description = "Verifica conflito com data e hora completas. Para passar da meia-noite, envie dataFim (dia seguinte); sem ela, a reserva termina no mesmo dia. Máximo de 24 horas. Em área que exige aprovação, o proprietário confirma direto e o inquilino fica AGUARDANDO APROVACAO (RF-RES-001, RF-RES-004, V1.1)."
     )
     public ResponseEntity<ReservaResponseDTO> solicitar(@RequestBody SolicitacaoReservaDTO dados) {
         return ResponseEntity.ok(reservaService.solicitar(dados, getUsuarioLogado()));

@@ -37,6 +37,7 @@ class CondominioServiceTest {
     @Mock private TorreRepository torreRepository;
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private AreaComumRepository areaComumRepository;
+    @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
     @InjectMocks private CondominioService service;
 
     private Condominio condominio;
@@ -237,6 +238,30 @@ class CondominioServiceTest {
 
         assertThrows(ConflitoException.class,
                 () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", null, null, null), admin));
+    }
+
+    @Test
+    void torreSemNomeEUnidadeSemNumeroSaoRecusadasSemErro500() {
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarTorre(new TorreDTO(" ", null), admin));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.cadastrarApartamento(new ApartamentoDTO(null, "LIVRE", null, null, null), admin));
+        verify(torreRepository, never()).save(any());
+        verify(apartamentoRepository, never()).save(any());
+    }
+
+    @Test
+    void statusDaUnidadeEditadaPassaPelaRegraDosMoradores() {
+        var apartamento = new Apartamento();
+        apartamento.setId(UUID.randomUUID());
+        apartamento.setCondominio(condominio);
+        apartamento.setStatus("OCUPADO");
+        when(apartamentoRepository.findByIdAndCondominioId(apartamento.getId(), condominio.getId())).thenReturn(Optional.of(apartamento));
+        when(ocupacaoUnidadeService.statusEscolhido(apartamento, "LIVRE"))
+                .thenThrow(new ConflitoException("A unidade tem morador ativo"));
+
+        assertThrows(ConflitoException.class,
+                () -> service.atualizarApartamento(apartamento.getId(), new ApartamentoDTO("101", "LIVRE", null, null, null), admin));
+        verify(apartamentoRepository, never()).save(any());
     }
 
     @Test

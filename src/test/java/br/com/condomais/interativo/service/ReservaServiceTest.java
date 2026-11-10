@@ -99,12 +99,12 @@ class ReservaServiceTest {
     }
 
     private SolicitacaoReservaDTO pedido() {
-        return new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(14, 0), LocalTime.of(18, 0));
+        return new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(14, 0), LocalTime.of(18, 0), null);
     }
 
     private void areaDisponivel() {
         when(areaComumRepository.findParaReserva(salao.getId(), condominio.getId())).thenReturn(Optional.of(salao));
-        when(reservaRepository.existeConflitoDeHorario(any(), any(), any(), any())).thenReturn(false);
+        when(reservaRepository.existeConflitoDeHorario(any(), any(), any(), any(), any())).thenReturn(false);
         when(reservaRepository.save(any(Reserva.class))).thenAnswer(i -> i.getArgument(0));
     }
 
@@ -145,7 +145,7 @@ class ReservaServiceTest {
     @Test
     void horarioOcupadoEhConflito() {
         when(areaComumRepository.findParaReserva(salao.getId(), condominio.getId())).thenReturn(Optional.of(salao));
-        when(reservaRepository.existeConflitoDeHorario(salao.getId(), semanaQueVem, LocalTime.of(14, 0), LocalTime.of(18, 0))).thenReturn(true);
+        when(reservaRepository.existeConflitoDeHorario(salao.getId(), semanaQueVem, LocalTime.of(14, 0), semanaQueVem, LocalTime.of(18, 0))).thenReturn(true);
 
         assertThrows(ConflitoException.class, () -> service.solicitar(pedido(), auth(proprietario101)));
         verify(reservaRepository, never()).save(any());
@@ -163,14 +163,57 @@ class ReservaServiceTest {
 
     @Test
     void validacoesDeHorario() {
-        var invertido = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(18, 0), LocalTime.of(14, 0));
-        var passado = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem.minusDays(30), LocalTime.of(14, 0), LocalTime.of(18, 0));
-        var incompleto = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, null, LocalTime.of(18, 0));
+        var invertido = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(18, 0), LocalTime.of(14, 0), null);
+        var passado = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem.minusDays(30), LocalTime.of(14, 0), LocalTime.of(18, 0), null);
+        var incompleto = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, null, LocalTime.of(18, 0), null);
 
         assertThrows(IllegalArgumentException.class, () -> service.solicitar(invertido, auth(proprietario101)));
         assertThrows(IllegalArgumentException.class, () -> service.solicitar(passado, auth(proprietario101)));
         assertThrows(IllegalArgumentException.class, () -> service.solicitar(incompleto, auth(proprietario101)));
         verifyNoInteractions(areaComumRepository);
+    }
+
+    @Test
+    void reservaPassaDaMeiaNoiteComDataDeFimNoDiaSeguinte() {
+        areaDisponivel();
+        var noite = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(22, 0), LocalTime.of(1, 0), semanaQueVem.plusDays(1));
+
+        var resposta = service.solicitar(noite, auth(proprietario101));
+
+        assertEquals(semanaQueVem, resposta.dataReserva());
+        assertEquals(semanaQueVem.plusDays(1), resposta.dataFim());
+        // O conflito é checado com o período inteiro, até a 01h do dia seguinte
+        verify(reservaRepository).existeConflitoDeHorario(salao.getId(), semanaQueVem, LocalTime.of(22, 0), semanaQueVem.plusDays(1), LocalTime.of(1, 0));
+    }
+
+    @Test
+    void semDataDeFimTerminaNoMesmoDia() {
+        areaDisponivel();
+
+        var resposta = service.solicitar(pedido(), auth(proprietario101));
+
+        assertEquals(semanaQueVem, resposta.dataFim());
+    }
+
+    @Test
+    void meiaNoiteSemDataDeFimExplicaComoFazer() {
+        var semFim = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(22, 0), LocalTime.of(1, 0), null);
+
+        var erro = assertThrows(IllegalArgumentException.class, () -> service.solicitar(semFim, auth(proprietario101)));
+        assertTrue(erro.getMessage().contains("data de fim"));
+    }
+
+    @Test
+    void reservaNaoPassaDe24HorasNemTerminaAntesDeComecar() {
+        var longa = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(10, 0), LocalTime.of(10, 30), semanaQueVem.plusDays(1));
+        var fimNaVespera = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(10, 0), LocalTime.of(12, 0), semanaQueVem.minusDays(1));
+        var exatas24 = new SolicitacaoReservaDTO(salao.getId(), semanaQueVem, LocalTime.of(10, 0), LocalTime.of(10, 0), semanaQueVem.plusDays(1));
+
+        assertThrows(IllegalArgumentException.class, () -> service.solicitar(longa, auth(proprietario101)));
+        assertThrows(IllegalArgumentException.class, () -> service.solicitar(fimNaVespera, auth(proprietario101)));
+        verifyNoInteractions(areaComumRepository);
+        areaDisponivel();
+        assertEquals("CONFIRMADA", service.solicitar(exatas24, auth(proprietario101)).status());
     }
 
     @Test
@@ -212,6 +255,19 @@ class ReservaServiceTest {
     }
 
     @Test
+    void reservaQuePassaDaMeiaNoiteApareceNosDoisDias() {
+        var noite = reserva(proprietario101, "CONFIRMADA", semanaQueVem);
+        noite.setHorarioInicio(LocalTime.of(22, 0));
+        noite.setDataFim(semanaQueVem.plusDays(1));
+        noite.setHorarioFim(LocalTime.of(2, 0));
+        when(reservaRepository.listarDoCondominio(condominio.getId())).thenReturn(List.of(noite));
+
+        assertEquals(1, service.listar(null, semanaQueVem, null, auth(admin)).size());
+        assertEquals(1, service.listar(null, semanaQueVem.plusDays(1), null, auth(admin)).size());
+        assertEquals(0, service.listar(null, semanaQueVem.plusDays(2), null, auth(admin)).size());
+    }
+
+    @Test
     void moradorNaoAbreReservaDeOutraUnidade() {
         var deOutra = reserva(moradorOutraUnidade, "CONFIRMADA", semanaQueVem);
 
@@ -228,6 +284,8 @@ class ReservaServiceTest {
 
         assertEquals(1, ocupados.size());
         assertEquals(LocalTime.of(14, 0), ocupados.get(0).horarioInicio());
+        // Reserva antiga, sem data de fim gravada, termina no próprio dia
+        assertEquals(semanaQueVem, ocupados.get(0).dataFim());
     }
 
     @Test
