@@ -196,23 +196,54 @@ class VisitaServiceTest {
         assertThrows(RecursoNaoEncontradoException.class, () -> service.cadastrar(pedido(deOutro, null, null), auth(porteiro)));
     }
 
-    @Test
-    void visitanteEhReaproveitadoPeloCpfNoCondominioComNomeAtualizado() {
+    private Visitante visitanteExistente(String telefone) {
         var existente = new Visitante();
         existente.setId(UUID.randomUUID());
         existente.setCpf(CPF);
         existente.setNome("Mari");
-        existente.setTelefone("(81) 3333-0000");
+        existente.setTelefone(telefone);
         existente.setCondominio(condominio);
-        when(usuarioRepository.findById(morador101.getId())).thenReturn(Optional.of(morador101));
         when(visitanteRepository.findByCondominioIdAndCpf(condominio.getId(), CPF)).thenReturn(Optional.of(existente));
+        return existente;
+    }
+
+    @Test
+    void moradorReaproveitaOVisitanteSemRenomearOCadastroDosOutros() {
+        var existente = visitanteExistente("(81) 3333-0000");
+        when(usuarioRepository.findById(morador101.getId())).thenReturn(Optional.of(morador101));
         salvarDevolveOArgumento();
 
         var resposta = service.cadastrar(pedido(null, null, null), auth(morador101));
 
+        // O pedido dizia "Mariana Souza" e outro telefone, mas o cadastro de quem confere documento fica
+        assertEquals("Mari", resposta.visitanteNome());
+        assertEquals("(81) 3333-0000", resposta.visitanteTelefone());
+        verify(visitanteRepository).save(existente);
+    }
+
+    @Test
+    void moradorPreencheOTelefoneQueFaltava() {
+        visitanteExistente(null);
+        when(usuarioRepository.findById(morador101.getId())).thenReturn(Optional.of(morador101));
+        salvarDevolveOArgumento();
+
+        var resposta = service.cadastrar(pedido(null, null, null), auth(morador101));
+
+        assertEquals("Mari", resposta.visitanteNome());
+        assertEquals("(81) 98888-0001", resposta.visitanteTelefone());
+    }
+
+    @Test
+    void portariaCorrigeONomeENoTelefoneDoVisitante() {
+        visitanteExistente("(81) 3333-0000");
+        when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
+        when(apartamentoRepository.findByIdAndCondominioId(unidade101.getId(), condominio.getId())).thenReturn(Optional.of(unidade101));
+        salvarDevolveOArgumento();
+
+        var resposta = service.cadastrar(pedido(unidade101.getId(), null, true), auth(porteiro));
+
         assertEquals("Mariana Souza", resposta.visitanteNome());
         assertEquals("(81) 98888-0001", resposta.visitanteTelefone());
-        verify(visitanteRepository).save(existente);
     }
 
     @Test
@@ -236,7 +267,23 @@ class VisitaServiceTest {
         var ontem = agora().minusDays(1);
         assertThrows(IllegalArgumentException.class, () -> service.cadastrar(new AutorizacaoVisitaDTO(CPF, "Ana", null, null, null,
                 ontem.toLocalDate(), ontem.toLocalTime(), ontem.plusHours(2).toLocalDate(), ontem.plusHours(2).toLocalTime(), null, null), auth(morador101)));
+        // autorização de mais de 30 dias (não há autorização permanente)
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrar(new AutorizacaoVisitaDTO(CPF, "Ana", null, null, null,
+                inicio.toLocalDate(), inicio.toLocalTime(), inicio.plusDays(31).toLocalDate(), inicio.toLocalTime(), null, null), auth(morador101)));
         verify(visitaRepository, never()).save(any());
+    }
+
+    @Test
+    void autorizacaoDeExatamente30DiasEhAceita() {
+        when(usuarioRepository.findById(morador101.getId())).thenReturn(Optional.of(morador101));
+        when(visitanteRepository.findByCondominioIdAndCpf(condominio.getId(), CPF)).thenReturn(Optional.empty());
+        salvarDevolveOArgumento();
+        var inicio = agora().plusHours(1);
+
+        var resposta = service.cadastrar(new AutorizacaoVisitaDTO(CPF, "Ana", null, null, null,
+                inicio.toLocalDate(), inicio.toLocalTime(), inicio.plusDays(30).toLocalDate(), inicio.toLocalTime(), null, null), auth(morador101));
+
+        assertEquals("AUTORIZADO", resposta.status());
     }
 
     // ---------------------------------------------------------------------
