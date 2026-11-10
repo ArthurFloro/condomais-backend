@@ -26,8 +26,9 @@ import java.util.UUID;
 
 /**
  * Chamados do condomínio do token.
- * - Qualquer perfil do condomínio abre. O morador só aponta a própria unidade (ou nenhuma, para área comum).
- * - Administração e portaria veem todos; o morador vê os que abriu e os da unidade dele.
+ * - Administração e morador abrem. O morador só aponta a própria unidade (ou nenhuma, para área comum).
+ * - A administração vê todos; o morador vê os que abriu e os da unidade dele.
+ * - A portaria não tem acesso às ocorrências (CONDO-09 e CONDO-12): não lista, não abre, não lê nem comenta.
  * - Só a administração muda o status e registra o prestador; quem pode ver o chamado pode comentar.
  * - Toda mudança vai para o histórico (RF-CHA-012). ENCERRADO é final.
  */
@@ -54,6 +55,7 @@ public class ChamadoService {
 
     @Transactional(readOnly = true)
     public List<ChamadoResponseDTO> listar(String statusInformado, UUID categoriaId, UsuarioAutenticado auth) {
+        exigirAcesso(auth);
         var status = normalizarStatus(statusInformado);
         List<Chamado> chamados;
         if (isMorador(auth)) {
@@ -83,6 +85,7 @@ public class ChamadoService {
 
     @Transactional
     public ChamadoResponseDTO abrir(AberturaChamadoDTO dados, UsuarioAutenticado auth) {
+        exigirAcesso(auth);
         var solicitante = usuarioDe(auth);
         // Sem categoria escolhida, o chamado vai para "Outros" e a administração pode recategorizar depois
         var categoria = dados.categoriaId() == null
@@ -183,6 +186,7 @@ public class ChamadoService {
 
     // Para o morador, chamado que ele não abriu e que não é da unidade dele responde 404
     private Chamado buscarVisivel(UUID id, UsuarioAutenticado auth) {
+        exigirAcesso(auth);
         var chamado = buscarDoCondominio(id, auth);
         if (isMorador(auth)) {
             var morador = usuarioDe(auth);
@@ -256,6 +260,13 @@ public class ChamadoService {
 
     private static String textoOuNulo(String valor) {
         return valor == null || valor.isBlank() ? null : valor.trim();
+    }
+
+    // Detalhe e comentário passam por buscarVisivel; o andamento (atualizar) já é só da administração
+    private static void exigirAcesso(UsuarioAutenticado auth) {
+        if ("PORTARIA".equals(UsuarioService.normalizarPerfil(auth.getPerfil()))) {
+            throw new SecurityException("A portaria não tem acesso às ocorrências.");
+        }
     }
 
     private static boolean isMorador(UsuarioAutenticado auth) {
