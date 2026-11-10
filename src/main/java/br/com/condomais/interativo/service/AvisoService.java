@@ -79,7 +79,7 @@ public class AvisoService {
         // Garante o isolamento Multi-Condomínio e vincula o autor
         aviso.setCondominio(autor.getCondominio());
         aviso.setAutor(autor);
-        aviso.setCreatedAt(LocalDateTime.now());
+        aviso.setCreatedAt(LocalDateTime.now(FUSO));
         return AvisoResponseDTO.from(avisoRepository.save(aviso), hoje());
     }
 

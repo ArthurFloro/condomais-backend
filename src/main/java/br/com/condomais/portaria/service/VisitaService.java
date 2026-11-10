@@ -37,7 +37,9 @@ import java.util.UUID;
  * - Só a portaria/admin registra a entrada (AUTORIZADO e dentro do período) e a saída. A entrada imediata
  *   (POST /entrada) continua para o visitante que chega sem cadastro prévio.
  * - PENDENTE ou AUTORIZADO com o período vencido aparece como EXPIRADO (calculado, não gravado).
- * - Portaria e administração veem todas; o morador, as da própria unidade.
+ * - Portaria e administração veem todas; o morador, as da própria unidade, menos as de quem já morou nela.
+ * - Quando o morador sai da unidade (muda, é desativado ou deixa de ser morador), as autorizações dele ali que
+ *   ainda valem viram RECUSADO: o novo ocupante não herda visitantes liberados pelo anterior (CONDO-11.4).
  */
 @Service
 public class VisitaService {
@@ -68,7 +70,10 @@ public class VisitaService {
         if (isMorador(auth)) {
             var unidade = usuarioDe(auth).getApartamento();
             if (unidade == null) return List.of(); // morador ainda sem unidade
-            visitas = visitaRepository.listarDaUnidade(auth.getCondominioId(), unidade.getId());
+            var morador = usuarioDe(auth);
+            visitas = visitaRepository.listarDaUnidade(auth.getCondominioId(), unidade.getId()).stream()
+                    .filter(v -> visivelParaMorador(v, morador))
+                    .toList();
             apartamentoId = null; // o morador não escolhe a unidade
         } else {
             visitas = visitaRepository.listarDoCondominio(auth.getCondominioId());
@@ -160,6 +165,21 @@ public class VisitaService {
         return resposta(visitaRepository.save(visita));
     }
 
+    /**
+     * O morador saiu da unidade (mudou, foi desativado ou deixou de ser morador): as visitas que ele autorizou
+     * ou pelas quais respondia ali, e que ainda não aconteceram, deixam de valer. Expiradas ficam como estão.
+     */
+    @Transactional
+    public void revogarAutorizacoesDoMorador(Usuario morador, Apartamento unidade) {
+        if (morador == null || unidade == null) return;
+        var agora = agora();
+        var abertas = visitaRepository.listarAutorizacoesAbertas(unidade.getId(), morador.getId()).stream()
+                .filter(v -> !EXPIRADO.equals(statusEfetivo(v, agora)))
+                .toList();
+        abertas.forEach(v -> v.setStatus(RECUSADO));
+        visitaRepository.saveAll(abertas);
+    }
+
     // ---------------------------------------------------------------------
     // Entrada e saída (portaria ou administração)
     // ---------------------------------------------------------------------
@@ -227,12 +247,22 @@ public class VisitaService {
     private Visita buscarVisivel(UUID id, UsuarioAutenticado auth) {
         var visita = buscarDoCondominio(id, auth);
         if (isMorador(auth)) {
-            var unidade = usuarioDe(auth).getApartamento();
-            if (unidade == null || !unidade.getId().equals(visita.getApartamento().getId())) {
+            var morador = usuarioDe(auth);
+            var unidade = morador.getApartamento();
+            if (unidade == null || !unidade.getId().equals(visita.getApartamento().getId()) || !visivelParaMorador(visita, morador)) {
                 throw new RecursoNaoEncontradoException("Visita não encontrada.");
             }
         }
         return visita;
+    }
+
+    // Da unidade do morador: as cadastradas pela portaria sem responsável e as de quem ainda mora nela.
+    // As do ocupante anterior (responsável que já saiu) ficam fora, com o nome e o CPF dos visitantes dele.
+    private static boolean visivelParaMorador(Visita visita, Usuario morador) {
+        var responsavel = visita.getMorador();
+        if (responsavel == null || responsavel.getId().equals(morador.getId())) return true;
+        return responsavel.getApartamento() != null && responsavel.getApartamento().getId().equals(visita.getApartamento().getId())
+                && responsavel.isAtivo();
     }
 
     private Apartamento apartamentoDoCondominio(UUID apartamentoId, UsuarioAutenticado auth) {

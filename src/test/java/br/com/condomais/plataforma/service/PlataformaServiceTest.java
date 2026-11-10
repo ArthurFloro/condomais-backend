@@ -9,6 +9,7 @@ import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.portaria.service.VisitaService;
 import br.com.condomais.plataforma.dto.CadastroCondominioDTO;
 import br.com.condomais.plataforma.dto.DadosAdminDTO;
 import br.com.condomais.plataforma.dto.DadosCondominioDTO;
@@ -38,6 +39,7 @@ class PlataformaServiceTest {
     @Mock private CondominioRepository condominioRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
+    @Mock private VisitaService visitaService;
     @InjectMocks private PlataformaService service;
 
     private UsuarioAutenticado master;

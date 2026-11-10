@@ -11,6 +11,7 @@ import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.portaria.service.VisitaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -41,6 +42,9 @@ public class UsuarioService {
 
     @Autowired
     private OcupacaoUnidadeService ocupacaoUnidadeService;
+
+    @Autowired
+    private VisitaService visitaService;
 
     @Transactional(readOnly = true)
     public List<UsuarioResponseDTO> listar(UsuarioAutenticado auth) {
@@ -90,6 +94,10 @@ public class UsuarioService {
         preencher(usuario, dados, auth);
         var salvo = usuarioRepository.save(usuario);
         ocupacaoUnidadeService.recalcular(unidadeAnterior, salvo.getApartamento());
+        // Saiu da unidade: o próximo ocupante não herda os visitantes que ele tinha liberado
+        if (unidadeAnterior != null && (salvo.getApartamento() == null || !unidadeAnterior.getId().equals(salvo.getApartamento().getId()))) {
+            visitaService.revogarAutorizacoesDoMorador(salvo, unidadeAnterior);
+        }
         return UsuarioResponseDTO.from(salvo);
     }
 
@@ -103,6 +111,8 @@ public class UsuarioService {
         usuario.setStatus(ativo ? "ATIVO" : "INATIVO");
         var salvo = usuarioRepository.save(usuario);
         ocupacaoUnidadeService.recalcular(salvo.getApartamento());
+        // Desativado: as autorizações de visita que ele deu deixam de valer (reativar não as devolve)
+        if (!ativo) visitaService.revogarAutorizacoesDoMorador(salvo, salvo.getApartamento());
         return UsuarioResponseDTO.from(salvo);
     }
 

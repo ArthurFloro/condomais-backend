@@ -12,6 +12,7 @@ import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.portaria.service.VisitaService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +39,7 @@ class UsuarioServiceTest {
     @Mock private ApartamentoRepository apartamentoRepository;
     @Mock private CondominioRepository condominioRepository;
     @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
+    @Mock private VisitaService visitaService;
     @InjectMocks private UsuarioService service;
 
     private Condominio condominio;
@@ -247,6 +249,24 @@ class UsuarioServiceTest {
         service.atualizar(morador.getId(), morador(CPF_VALIDO, nova.getId()), authAdmin);
 
         verify(ocupacaoUnidadeService).recalcular(antiga, nova);
+        // Quem chega na unidade antiga não herda os visitantes liberados por ele
+        verify(visitaService).revogarAutorizacoesDoMorador(morador, antiga);
+    }
+
+    @Test
+    void editarMoradorSemTrocarDeUnidadeMantemAsVisitas() {
+        var apartamento = apartamento();
+        var morador = usuario("MORADOR");
+        morador.setCpf(CPF_VALIDO);
+        morador.setApartamento(apartamento);
+        when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
+        when(usuarioRepository.findByCpf(CPF_VALIDO)).thenReturn(Optional.of(morador));
+        when(apartamentoRepository.findByIdAndCondominioId(apartamento.getId(), condominio.getId())).thenReturn(Optional.of(apartamento));
+        when(usuarioRepository.save(any())).thenAnswer(invocacao -> invocacao.getArgument(0));
+
+        service.atualizar(morador.getId(), morador(CPF_VALIDO, apartamento.getId()), authAdmin);
+
+        verifyNoInteractions(visitaService);
     }
 
     @Test
@@ -260,5 +280,6 @@ class UsuarioServiceTest {
         service.alterarStatus(morador.getId(), false, authAdmin);
 
         verify(ocupacaoUnidadeService).recalcular(apartamento);
+        verify(visitaService).revogarAutorizacoesDoMorador(morador, apartamento);
     }
 }
