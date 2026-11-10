@@ -148,12 +148,26 @@ class ChamadoServiceTest {
     }
 
     @Test
-    void portariaAbrePorQualquerUnidadeEmoradorPorAreaComum() {
+    void adminAbrePorQualquerUnidadeEmoradorPorAreaComum() {
         categoriaDisponivel();
         when(apartamentoRepository.findByIdAndCondominioId(unidade102.getId(), condominio.getId())).thenReturn(Optional.of(unidade102));
 
-        assertEquals("102", service.abrir(new AberturaChamadoDTO("Barulho", "Festa", eletrica.getId(), unidade102.getId(), "alta", null), auth(portaria)).apartamentoNumero());
+        assertEquals("102", service.abrir(new AberturaChamadoDTO("Barulho", "Festa", eletrica.getId(), unidade102.getId(), "alta", null), auth(admin)).apartamentoNumero());
         assertNull(service.abrir(new AberturaChamadoDTO("Piscina suja", "Folhas", eletrica.getId(), null, null, null), auth(morador101)).apartamentoId());
+    }
+
+    @Test
+    void portariaNaoTemAcessoAsOcorrencias() {
+        // Também com o valor antigo "Porteiro" no banco
+        for (var quem : List.of(portaria, usuario("Porteiro", null))) {
+            var id = UUID.randomUUID();
+            assertThrows(SecurityException.class, () -> service.listar(null, null, auth(quem)));
+            assertThrows(SecurityException.class, () -> service.buscar(id, auth(quem)));
+            assertThrows(SecurityException.class,
+                    () -> service.abrir(new AberturaChamadoDTO("Portão", "Quebrou", null, null, null, null), auth(quem)));
+            assertThrows(SecurityException.class, () -> service.comentar(id, new ComentarioChamadoDTO("Visto"), auth(quem)));
+        }
+        verifyNoInteractions(chamadoRepository, historicoRepository);
     }
 
     @Test

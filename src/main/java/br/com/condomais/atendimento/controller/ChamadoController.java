@@ -18,7 +18,7 @@ import java.util.UUID;
 
 @RestController
 @RequestMapping("/atendimento/chamados")
-@Tag(name = "Módulo 5 - Chamados e Ocorrências", description = "Gerenciamento de chamados, ocorrências da portaria e registro de manutenções vinculadas.")
+@Tag(name = "Módulo 5 - Chamados e Ocorrências", description = "Gerenciamento de chamados, ocorrências e registro de manutenções vinculadas. A portaria não tem acesso (403).")
 public class ChamadoController {
 
     @Autowired
@@ -31,7 +31,7 @@ public class ChamadoController {
     @GetMapping
     @Operation(
             summary = "Listar chamados",
-            description = "Mais recentes primeiro. Administração e portaria veem todos do condomínio; o morador vê os que abriu e os da unidade dele. Filtros opcionais: status (ABERTO, EM_ANALISE, EM_ATENDIMENTO, RESOLVIDO, ENCERRADO) e categoriaId."
+            description = "Mais recentes primeiro. A administração vê todos do condomínio (a portaria não tem acesso); o morador vê os que abriu e os da unidade dele. Filtros opcionais: status (ABERTO, EM_ANALISE, EM_ATENDIMENTO, RESOLVIDO, ENCERRADO) e categoriaId."
     )
     public ResponseEntity<List<ChamadoResponseDTO>> listar(@RequestParam(required = false) String status,
                                                            @RequestParam(required = false) UUID categoriaId) {
@@ -47,7 +47,7 @@ public class ChamadoController {
     @PostMapping
     @Operation(
             summary = "Abrir um novo chamado ou ocorrência",
-            description = "Qualquer perfil do condomínio (RF-CHA-001). Status inicial ABERTO, prioridade NORMAL se não informada, registro no histórico. Sem categoriaId, vai para a categoria Outros. O morador só aponta a própria unidade (ou nenhuma, para área comum)."
+            description = "Administração ou morador (a portaria não tem acesso às ocorrências). Status inicial ABERTO, prioridade NORMAL se não informada, registro no histórico. Sem categoriaId, vai para a categoria Outros. O morador só aponta a própria unidade (ou nenhuma, para área comum)."
     )
     public ResponseEntity<ChamadoResponseDTO> abrir(@RequestBody AberturaChamadoDTO dados) {
         return ResponseEntity.ok(chamadoService.abrir(dados, getUsuarioLogado()));
