@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -37,6 +38,8 @@ public class ChamadoService {
     static final String ENCERRADO = "ENCERRADO";
     private static final Set<String> STATUS = Set.of(ABERTO, "EM ANALISE", "EM ATENDIMENTO", "RESOLVIDO", ENCERRADO);
     private static final Set<String> PRIORIDADES = Set.of("BAIXA", "NORMAL", "ALTA", "URGENTE");
+    // Abertura, encerramento e histórico são do condomínio, não do servidor (o Render roda em UTC)
+    private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
 
     @Autowired private ChamadoRepository chamadoRepository;
     @Autowired private CategoriaChamadoRepository categoriaRepository;
@@ -92,7 +95,7 @@ public class ChamadoService {
         chamado.setDescricao(obrigatorio(dados.descricao(), "Descreva o problema.", Integer.MAX_VALUE));
         chamado.setPrioridade(prioridade(dados.prioridade())); // Ex: BAIXA, NORMAL (RF-CHA-006)
         chamado.setStatus(ABERTO); // Status padrão (RF-CHA-008)
-        chamado.setDataAbertura(LocalDateTime.now());
+        chamado.setDataAbertura(LocalDateTime.now(FUSO));
         chamado.setCategoria(categoria);
         chamado.setSolicitante(solicitante);
         chamado.setCondominio(solicitante.getCondominio());
@@ -129,7 +132,7 @@ public class ChamadoService {
         if (novoStatus != null && !novoStatus.equals(chamado.getStatus())) {
             var anterior = chamado.getStatus();
             chamado.setStatus(novoStatus);
-            chamado.setDataEncerramento(ENCERRADO.equals(novoStatus) ? LocalDateTime.now() : null);
+            chamado.setDataEncerramento(ENCERRADO.equals(novoStatus) ? LocalDateTime.now(FUSO) : null);
             registrar(chamado, autor, "STATUS: " + anterior + " -> " + novoStatus, textoOuNulo(dados.comentario()));
             mudouAlgo = true;
         }
@@ -197,7 +200,7 @@ public class ChamadoService {
         var historico = new HistoricoChamado();
         historico.setAcao(acao);
         historico.setComentario(comentario);
-        historico.setDataHora(LocalDateTime.now());
+        historico.setDataHora(LocalDateTime.now(FUSO));
         historico.setChamado(chamado);
         historico.setUsuario(usuario);
         historicoRepository.save(historico);
