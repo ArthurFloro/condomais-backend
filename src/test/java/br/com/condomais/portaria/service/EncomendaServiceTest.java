@@ -213,17 +213,29 @@ class EncomendaServiceTest {
     }
 
     @Test
-    void adminComPerfilAntigoTambemRegistra() {
-        var admin = usuario("Administrador", "Admin", null);
+    void adminSoConsultaNaoRegistraRecebimentoNemRetirada() {
+        // Também com o valor antigo "Administrador" no banco (CONDO-12: consulta, mas não executa)
+        for (var perfil : List.of("ADMIN", "Administrador")) {
+            var admin = usuario(perfil, "Admin", null);
+            assertThrows(SecurityException.class,
+                    () -> service.registrarRecebimento(new RegistroEncomendaDTO(unidade101.getId(), "BR1", null), auth(admin)));
+            assertThrows(SecurityException.class, () -> service.registrarRetirada(UUID.randomUUID(), auth(admin)));
+        }
+        verifyNoInteractions(encomendaRepository);
+    }
+
+    @Test
+    void porteiroComPerfilAntigoTambemRegistra() {
+        var porteiro = usuario("Porteiro", "Seu José", null);
         var aberta = encomenda(unidade101, "AGUARDANDO RETIRADA");
         when(encomendaRepository.findByIdAndCondominioId(aberta.getId(), condominio.getId())).thenReturn(Optional.of(aberta));
-        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
         when(encomendaRepository.save(aberta)).thenReturn(aberta);
 
-        var resposta = service.registrarRetirada(aberta.getId(), auth(admin));
+        var resposta = service.registrarRetirada(aberta.getId(), auth(porteiro));
 
         assertEquals("RETIRADA", resposta.status());
-        assertEquals("Admin", resposta.porteiroRetiradaNome());
+        assertEquals("Seu José", resposta.porteiroRetiradaNome());
         assertNotNull(resposta.dataHoraRetirada());
     }
 

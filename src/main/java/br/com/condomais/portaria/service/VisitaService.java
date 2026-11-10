@@ -33,10 +33,11 @@ import java.util.UUID;
 /**
  * Visitas do condomínio do token.
  * - O morador autoriza visitantes para a própria unidade, com período de entrada; a visita já nasce AUTORIZADO.
- * - A portaria (ou o admin) também cadastra: AUTORIZADO quando há autorização prévia, senão PENDENTE até
- *   a portaria ou um morador da unidade autorizar ou recusar.
- * - Só a portaria/admin registra a entrada (AUTORIZADO e dentro do período) e a saída. A entrada imediata
+ * - A portaria também cadastra: AUTORIZADO quando há autorização prévia, senão PENDENTE até a portaria ou
+ *   um morador da unidade autorizar ou recusar.
+ * - Só a portaria registra a entrada (AUTORIZADO e dentro do período) e a saída. A entrada imediata
  *   (POST /entrada) continua para o visitante que chega sem cadastro prévio.
+ * - A administração só consulta: não cadastra, não autoriza e não registra entrada nem saída (CONDO-12).
  * - PENDENTE ou AUTORIZADO com o período vencido aparece como EXPIRADO (calculado, não gravado).
  * - O período de uma autorização vai até 30 dias. O visitante é um só por CPF no condomínio: só a portaria e
  *   a administração, que conferem o documento, corrigem o nome dele; o morador não renomeia o visitante dos outros.
@@ -118,7 +119,7 @@ public class VisitaService {
             status = AUTORIZADO;
             origem = "MORADOR";
         } else {
-            exigirPortariaOuAdmin(auth);
+            exigirPortaria(auth);
             apartamento = apartamentoDoCondominio(dados.apartamentoId(), auth);
             responsavel = dados.moradorId() == null ? null : moradorDaUnidade(dados.moradorId(), apartamento, auth);
             status = Boolean.TRUE.equals(dados.autorizado()) ? AUTORIZADO : PENDENTE;
@@ -154,9 +155,10 @@ public class VisitaService {
         return resposta(visitaRepository.save(visita));
     }
 
-    /** PENDENTE → AUTORIZADO, pela portaria/admin ou por um morador da unidade. */
+    /** PENDENTE → AUTORIZADO, pela portaria ou por um morador da unidade. */
     @Transactional
     public VisitaResponseDTO autorizar(UUID id, UsuarioAutenticado auth) {
+        if (!isMorador(auth)) exigirPortaria(auth);
         var visita = buscarVisivel(id, auth); // o morador só alcança visitas da própria unidade
         exigirStatus(visita, Set.of(PENDENTE), "Só uma visita pendente pode ser autorizada.");
         visita.setStatus(AUTORIZADO);
@@ -167,6 +169,7 @@ public class VisitaService {
     /** PENDENTE ou AUTORIZADO → RECUSADO (também serve para revogar uma autorização antes da entrada). */
     @Transactional
     public VisitaResponseDTO recusar(UUID id, UsuarioAutenticado auth) {
+        if (!isMorador(auth)) exigirPortaria(auth);
         var visita = buscarVisivel(id, auth);
         exigirStatus(visita, Set.of(PENDENTE, AUTORIZADO), "Só uma visita pendente ou autorizada pode ser recusada.");
         visita.setStatus(RECUSADO);
@@ -189,13 +192,13 @@ public class VisitaService {
     }
 
     // ---------------------------------------------------------------------
-    // Entrada e saída (portaria ou administração)
+    // Entrada e saída (só a portaria)
     // ---------------------------------------------------------------------
 
     /** Entrada de uma visita autorizada, dentro do período (RF-POR-006, RF-POR-014). */
     @Transactional
     public VisitaResponseDTO registrarEntrada(UUID id, UsuarioAutenticado auth) {
-        exigirPortariaOuAdmin(auth);
+        exigirPortaria(auth);
         var visita = buscarDoCondominio(id, auth);
         exigirStatus(visita, Set.of(AUTORIZADO), "A entrada exige uma autorização válida.");
         var agora = agora();
@@ -212,7 +215,7 @@ public class VisitaService {
     /** Visitante que chega sem cadastro prévio: cadastra e já registra a entrada. */
     @Transactional
     public VisitaResponseDTO registrarEntradaImediata(RegistroEntradaDTO dados, UsuarioAutenticado auth) {
-        exigirPortariaOuAdmin(auth);
+        exigirPortaria(auth);
         var apartamento = apartamentoDoCondominio(dados.apartamentoId(), auth);
         var agora = agora();
 
@@ -233,7 +236,7 @@ public class VisitaService {
 
     @Transactional
     public VisitaResponseDTO registrarSaida(UUID id, UsuarioAutenticado auth) {
-        exigirPortariaOuAdmin(auth);
+        exigirPortaria(auth);
         var visita = buscarDoCondominio(id, auth);
         if (!ENTROU.equals(visita.getStatus())) {
             throw new ConflitoException("Só é possível registrar a saída de um visitante que entrou e ainda não saiu.");
@@ -387,11 +390,10 @@ public class VisitaService {
         return "MORADOR".equals(UsuarioService.normalizarPerfil(auth.getPerfil()));
     }
 
-    // Enquanto não há autorização por perfil no SecurityConfig, a operação da portaria checa aqui
-    private static void exigirPortariaOuAdmin(UsuarioAutenticado auth) {
-        var perfil = UsuarioService.normalizarPerfil(auth.getPerfil());
-        if (!"PORTARIA".equals(perfil) && !"ADMIN".equals(perfil)) {
-            throw new SecurityException("Apenas a portaria ou a administração registra a entrada e a saída de visitantes.");
+    // A administração consulta, mas não opera a portaria (CONDO-12: "consultar, mas não executar")
+    private static void exigirPortaria(UsuarioAutenticado auth) {
+        if (!"PORTARIA".equals(UsuarioService.normalizarPerfil(auth.getPerfil()))) {
+            throw new SecurityException("Apenas a portaria registra visitantes, autorizações, entradas e saídas.");
         }
     }
 }
