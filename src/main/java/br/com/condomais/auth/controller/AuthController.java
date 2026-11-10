@@ -1,5 +1,6 @@
 package br.com.condomais.auth.controller;
 
+import java.nio.charset.StandardCharsets;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.core.security.TokenService;
@@ -41,6 +42,9 @@ public class AuthController {
     // Classe interna auxiliar (DTO) para não expor a Entidade
     public record PrimeiroAcessoDTO(String cpf, String novaSenha) {}
 
+    static final int SENHA_MINIMA = 8;
+    static final int SENHA_MAXIMA_BYTES = 72;
+
     @PostMapping("/primeiro-acesso")
     @Operation(
             summary = "Primeiro acesso e criação de senha",
@@ -49,6 +53,13 @@ public class AuthController {
     public ResponseEntity<String> primeiroAcesso(@RequestBody PrimeiroAcessoDTO dados) {
         if (dados.novaSenha() == null || dados.novaSenha().isBlank()) {
             return ResponseEntity.badRequest().body("Informe a nova senha.");
+        }
+        // Mesmo mínimo do front; acima de 72 bytes o bcrypt ignora o resto, então a senha seria só um prefixo
+        if (dados.novaSenha().length() < SENHA_MINIMA) {
+            return ResponseEntity.badRequest().body("A senha deve ter no mínimo " + SENHA_MINIMA + " caracteres.");
+        }
+        if (dados.novaSenha().getBytes(StandardCharsets.UTF_8).length > SENHA_MAXIMA_BYTES) {
+            return ResponseEntity.badRequest().body("A senha deve ter no máximo " + SENHA_MAXIMA_BYTES + " caracteres.");
         }
 
         // Consulta se o CPF já está pré-cadastrado pela Administração

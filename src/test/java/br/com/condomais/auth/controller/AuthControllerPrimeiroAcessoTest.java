@@ -15,6 +15,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -66,8 +67,8 @@ class AuthControllerPrimeiroAcessoTest {
         when(usuarioRepository.findByCpf(CPF)).thenReturn(Optional.of(usuario));
         when(usuarioRepository.findByCpf("00000000000")).thenReturn(Optional.empty());
 
-        var jaTemSenha = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO(CPF, "x"));
-        var inexistente = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO("00000000000", "x"));
+        var jaTemSenha = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO(CPF, "senha-qualquer"));
+        var inexistente = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO("00000000000", "senha-qualquer"));
 
         assertEquals(jaTemSenha.getStatusCode(), inexistente.getStatusCode());
         assertEquals(jaTemSenha.getBody(), inexistente.getBody());
@@ -79,5 +80,18 @@ class AuthControllerPrimeiroAcessoTest {
 
         assertEquals(400, resposta.getStatusCode().value());
         verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void recusaSenhaCurtaOuLongaDemaisAntesDeConsultarOCpf() {
+        var curta = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO(CPF, "1234567"));
+        var longa = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO(CPF, "a".repeat(73)));
+        // Acentos contam mais de um byte no bcrypt: 37 "ç" são 74 bytes
+        var acentuada = controller.primeiroAcesso(new AuthController.PrimeiroAcessoDTO(CPF, "ç".repeat(37)));
+
+        assertEquals(400, curta.getStatusCode().value());
+        assertEquals(400, longa.getStatusCode().value());
+        assertEquals(400, acentuada.getStatusCode().value());
+        verifyNoInteractions(usuarioRepository);
     }
 }
