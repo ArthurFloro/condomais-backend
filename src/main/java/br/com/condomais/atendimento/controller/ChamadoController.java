@@ -31,7 +31,7 @@ public class ChamadoController {
     @GetMapping
     @Operation(
             summary = "Listar chamados",
-            description = "Mais recentes primeiro. A administração vê todos do condomínio (a portaria não tem acesso); o morador vê os que abriu e os da unidade dele. Filtros opcionais: status (ABERTO, EM_ANALISE, EM_ATENDIMENTO, RESOLVIDO, ENCERRADO) e categoriaId."
+            description = "Mais recentes primeiro. A administração vê todos do condomínio (a portaria não tem acesso); o morador vê só os que ele abriu (ocorrências privadas). Filtros opcionais: status (ABERTO, EM_ANALISE, EM_ATENDIMENTO, RESOLVIDO, ENCERRADO) e categoriaId."
     )
     public ResponseEntity<List<ChamadoResponseDTO>> listar(@RequestParam(required = false) String status,
                                                            @RequestParam(required = false) UUID categoriaId) {
@@ -39,7 +39,7 @@ public class ChamadoController {
     }
 
     @GetMapping("/{id}")
-    @Operation(summary = "Consultar chamado com histórico", description = "Traz o histórico completo (abertura, mudanças de status, comentários). Para o morador, chamado de outra unidade responde 404.")
+    @Operation(summary = "Consultar chamado com histórico", description = "Traz o histórico completo (abertura, mudanças de status, comentários). Para o morador, chamado que ele não abriu responde 404.")
     public ResponseEntity<ChamadoResponseDTO> buscar(@PathVariable UUID id) {
         return ResponseEntity.ok(chamadoService.buscar(id, getUsuarioLogado()));
     }
@@ -56,7 +56,7 @@ public class ChamadoController {
     @PutMapping("/{id}")
     @Operation(
             summary = "Atualizar andamento (administração)",
-            description = "Muda o status, recategoriza (categoriaId) e/ou registra o prestador externo e a previsão de atendimento; campos nulos não mudam e o comentário vai para o histórico. Chamado ENCERRADO não muda mais."
+            description = "Muda o status, recategoriza (categoriaId) e/ou registra o prestador externo e a previsão de atendimento; campos nulos não mudam e o comentário (opcional, serve de solução aplicada ao resolver) vai para o histórico. RESOLVIDO não é reaberto, só encerrado; ENCERRADO não muda mais."
     )
     public ResponseEntity<ChamadoResponseDTO> atualizar(@PathVariable UUID id, @RequestBody AtualizacaoChamadoDTO dados) {
         return ResponseEntity.ok(chamadoService.atualizar(id, dados, getUsuarioLogado()));

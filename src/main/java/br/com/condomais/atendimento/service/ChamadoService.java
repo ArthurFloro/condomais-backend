@@ -20,24 +20,26 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
 /**
  * Chamados do condomínio do token.
  * - Administração e morador abrem. O morador só aponta a própria unidade (ou nenhuma, para área comum).
- * - A administração vê todos; o morador vê os que abriu e os da unidade dele.
+ * - A administração vê todos; o morador vê só os que ele abriu, nem os de outro morador da mesma unidade
+ *   (ocorrências privadas, CONDO-09).
  * - A portaria não tem acesso às ocorrências (CONDO-09 e CONDO-12): não lista, não abre, não lê nem comenta.
  * - Só a administração muda o status e registra o prestador; quem pode ver o chamado pode comentar.
- * - Toda mudança vai para o histórico (RF-CHA-012). ENCERRADO é final.
+ * - Toda mudança vai para o histórico (RF-CHA-012). RESOLVIDO não é reaberto (só pode ir a ENCERRADO; se o
+ *   problema voltar, abre-se outro chamado) e ENCERRADO é final.
  */
 @Service
 public class ChamadoService {
 
     static final String ABERTO = "ABERTO";
+    static final String RESOLVIDO = "RESOLVIDO";
     static final String ENCERRADO = "ENCERRADO";
-    private static final Set<String> STATUS = Set.of(ABERTO, "EM ANALISE", "EM ATENDIMENTO", "RESOLVIDO", ENCERRADO);
+    private static final Set<String> STATUS = Set.of(ABERTO, "EM ANALISE", "EM ATENDIMENTO", RESOLVIDO, ENCERRADO);
     private static final Set<String> PRIORIDADES = Set.of("BAIXA", "NORMAL", "ALTA", "URGENTE");
     // Abertura, encerramento e histórico são do condomínio, não do servidor (o Render roda em UTC)
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
@@ -59,10 +61,7 @@ public class ChamadoService {
         var status = normalizarStatus(statusInformado);
         List<Chamado> chamados;
         if (isMorador(auth)) {
-            var unidade = usuarioDe(auth).getApartamento();
-            chamados = unidade != null
-                    ? chamadoRepository.listarDoMorador(auth.getCondominioId(), auth.getId(), unidade.getId())
-                    : chamadoRepository.findByCondominioIdAndSolicitanteIdOrderByDataAberturaDesc(auth.getCondominioId(), auth.getId());
+            chamados = chamadoRepository.findByCondominioIdAndSolicitanteIdOrderByDataAberturaDesc(auth.getCondominioId(), auth.getId());
         } else {
             chamados = chamadoRepository.findByCondominioIdOrderByDataAberturaDesc(auth.getCondominioId());
         }
@@ -134,6 +133,9 @@ public class ChamadoService {
 
         if (novoStatus != null && !novoStatus.equals(chamado.getStatus())) {
             var anterior = chamado.getStatus();
+            if (RESOLVIDO.equals(anterior) && !ENCERRADO.equals(novoStatus)) {
+                throw new ConflitoException("Um chamado resolvido não é reaberto. Se o problema voltou, abra um novo chamado.");
+            }
             chamado.setStatus(novoStatus);
             chamado.setDataEncerramento(ENCERRADO.equals(novoStatus) ? LocalDateTime.now(FUSO) : null);
             registrar(chamado, autor, "STATUS: " + anterior + " -> " + novoStatus, textoOuNulo(dados.comentario()));
@@ -184,18 +186,13 @@ public class ChamadoService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Chamado não encontrado."));
     }
 
-    // Para o morador, chamado que ele não abriu e que não é da unidade dele responde 404
+    // Para o morador, chamado que ele não abriu responde 404, mesmo que seja da unidade dele
     private Chamado buscarVisivel(UUID id, UsuarioAutenticado auth) {
         exigirAcesso(auth);
         var chamado = buscarDoCondominio(id, auth);
-        if (isMorador(auth)) {
-            var morador = usuarioDe(auth);
-            var abriu = chamado.getSolicitante() != null && chamado.getSolicitante().getId().equals(auth.getId());
-            var daUnidade = morador.getApartamento() != null && chamado.getApartamento() != null
-                    && Objects.equals(chamado.getApartamento().getId(), morador.getApartamento().getId());
-            if (!abriu && !daUnidade) {
-                throw new RecursoNaoEncontradoException("Chamado não encontrado.");
-            }
+        var abriu = chamado.getSolicitante() != null && chamado.getSolicitante().getId().equals(auth.getId());
+        if (isMorador(auth) && !abriu) {
+            throw new RecursoNaoEncontradoException("Chamado não encontrado.");
         }
         return chamado;
     }

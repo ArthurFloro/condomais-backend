@@ -194,12 +194,21 @@ class ChamadoServiceTest {
     // ---------------------------------------------------------------------
 
     @Test
-    void moradorListaOsDeleEOsDaUnidade() {
-        var doVizinho = chamado(vizinho101, unidade101, "ABERTO");
-        when(chamadoRepository.listarDoMorador(condominio.getId(), morador101.getId(), unidade101.getId())).thenReturn(List.of(doVizinho));
+    void moradorListaSoOsQueEleAbriu() {
+        var meu = chamado(morador101, unidade101, "ABERTO");
+        when(chamadoRepository.findByCondominioIdAndSolicitanteIdOrderByDataAberturaDesc(condominio.getId(), morador101.getId())).thenReturn(List.of(meu));
 
-        assertEquals(1, service.listar(null, null, auth(morador101)).size());
+        assertEquals(List.of(meu.getId()), service.listar(null, null, auth(morador101)).stream().map(c -> c.id()).toList());
         verify(chamadoRepository, never()).findByCondominioIdOrderByDataAberturaDesc(any());
+    }
+
+    @Test
+    void moradorNaoLeNemComentaOChamadoDoVizinhoDaMesmaUnidade() {
+        var doVizinho = chamado(vizinho101, unidade101, "ABERTO");
+
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.buscar(doVizinho.getId(), auth(morador101)));
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> service.comentar(doVizinho.getId(), new ComentarioChamadoDTO("Também vi"), auth(morador101)));
     }
 
     @Test
@@ -266,6 +275,30 @@ class ChamadoServiceTest {
                 () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("ABERTO", null, null, null, null, null), auth(admin)));
         assertThrows(ConflitoException.class,
                 () -> service.comentar(chamado.getId(), new ComentarioChamadoDTO("E agora?"), auth(morador101)));
+    }
+
+    @Test
+    void chamadoResolvidoNaoEhReabertoMasPodeSerEncerradoEComentado() {
+        var chamado = chamado(morador101, unidade101, "RESOLVIDO");
+        when(chamadoRepository.save(chamado)).thenReturn(chamado);
+
+        for (var volta : List.of("ABERTO", "EM_ANALISE", "EM_ATENDIMENTO")) {
+            assertThrows(ConflitoException.class,
+                    () -> service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO(volta, null, null, null, null, null), auth(admin)));
+        }
+        assertEquals("RESOLVIDO", chamado.getStatus());
+        // Comentar e anotar a solução continuam valendo enquanto não é encerrado
+        service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO(null, null, "Troca do disjuntor", null, null, null), auth(admin));
+        service.comentar(chamado.getId(), new ComentarioChamadoDTO("Obrigado!"), auth(morador101));
+        assertEquals("ENCERRADO", service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("ENCERRADO", null, null, null, null, null), auth(admin)).status());
+    }
+
+    @Test
+    void resolverSemTextoDeSolucaoEhPermitido() {
+        var chamado = chamado(morador101, unidade101, "EM ATENDIMENTO");
+        when(chamadoRepository.save(chamado)).thenReturn(chamado);
+
+        assertEquals("RESOLVIDO", service.atualizar(chamado.getId(), new AtualizacaoChamadoDTO("RESOLVIDO", null, null, null, null, null), auth(admin)).status());
     }
 
     @Test
