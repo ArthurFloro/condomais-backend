@@ -2,7 +2,9 @@ package br.com.condomais.interativo.dto;
 
 import br.com.condomais.interativo.model.Reserva;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -19,7 +21,11 @@ public record ReservaResponseDTO(
         String moradorNome,
         String apartamentoNumero,
         String torreNome,
-        String aprovadorNome        // quem aprovou ou recusou, quando houve aprovação
+        String aprovadorNome,       // quem aprovou ou recusou, quando houve aprovação
+        BigDecimal valorTaxa,       // taxa cobrada (nula = gratuita)
+        String instrucoesPagamento, // da área, para o morador saber como pagar
+        String pagamentoConfirmadoPorNome,
+        LocalDateTime pagamentoConfirmadoEm
 ) {
     public static ReservaResponseDTO from(Reserva reserva) {
         var morador = reserva.getMorador();
@@ -37,7 +43,11 @@ public record ReservaResponseDTO(
                 morador != null ? morador.getNome() : null,
                 apartamento != null ? apartamento.getNumero() : null,
                 torre != null ? torre.getNome() : null,
-                reserva.getAprovador() != null ? reserva.getAprovador().getNome() : null
+                reserva.getAprovador() != null ? reserva.getAprovador().getNome() : null,
+                reserva.getValorTaxa(),
+                reserva.getValorTaxa() != null ? reserva.getArea().getInstrucoesPagamento() : null,
+                reserva.getPagamentoConfirmadoPor() != null ? reserva.getPagamentoConfirmadoPor().getNome() : null,
+                reserva.getPagamentoConfirmadoEm()
         );
     }
 }

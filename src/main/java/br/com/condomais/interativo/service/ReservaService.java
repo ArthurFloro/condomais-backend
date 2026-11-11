@@ -31,6 +31,9 @@ import java.util.UUID;
  *   fica AGUARDANDO APROVACAO até o admin ou o proprietário da mesma unidade aprovar ou recusar.
  * - A reserva pode passar da meia-noite (22h às 02h, com dataFim no dia seguinte), até 24 horas; o conflito
  *   compara data e hora completas.
+ * - Área com taxa (CONDO-08.5): depois da aprovação (ou de cara, se não precisa), a reserva fica AGUARDANDO
+ *   PAGAMENTO, segurando o horário, até o admin confirmar o pagamento manual (vira CONFIRMADA). Sem cancelamento
+ *   automático por falta de pagamento: o admin ou quem pediu cancela, liberando o horário.
  * - Quem pediu (ou o admin) cancela enquanto a reserva não passou.
  * - Quem deixa de morar no condomínio (desativado, ou sem unidade) tem as reservas futuras canceladas na hora,
  *   liberando o horário (CONDO-11.5). Mudar de unidade dentro do condomínio não cancela.
@@ -44,7 +47,8 @@ public class ReservaService {
     static final String AGUARDANDO = "AGUARDANDO APROVACAO";
     static final String CANCELADA = "CANCELADA";
     static final String RECUSADA = "RECUSADA";
-    private static final Set<String> STATUS = Set.of(CONFIRMADA, AGUARDANDO, CANCELADA, RECUSADA);
+    static final String AGUARDANDO_PAGAMENTO = "AGUARDANDO PAGAMENTO";
+    private static final Set<String> STATUS = Set.of(CONFIRMADA, AGUARDANDO, AGUARDANDO_PAGAMENTO, CANCELADA, RECUSADA);
     // Datas e horários das reservas são do condomínio, não do servidor (o Render roda em UTC)
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
     // Passar da meia-noite não pode virar reserva de vários dias seguidos
@@ -158,7 +162,9 @@ public class ReservaService {
         // Regra especial da V1.1: em área que exige aprovação, o proprietário confirma direto e o
         // inquilino aguarda o admin ou o proprietário da unidade (vínculo vem do cadastro do morador)
         var precisaAprovar = Boolean.TRUE.equals(area.getExigeAprovacao()) && !"PROPRIETARIO".equals(morador.getVinculo());
-        reserva.setStatus(precisaAprovar ? AGUARDANDO : CONFIRMADA);
+        // A taxa do momento do pedido fica gravada; sem aprovação pendente, a reserva paga já aguarda o pagamento
+        reserva.setValorTaxa(area.getTaxa() != null && area.getTaxa().signum() > 0 ? area.getTaxa() : null);
+        reserva.setStatus(precisaAprovar ? AGUARDANDO : depoisDaAprovacao(reserva));
 
         return ReservaResponseDTO.from(reservaRepository.save(reserva));
     }
@@ -174,7 +180,7 @@ public class ReservaService {
         if (!quemPediu && !isAdmin(auth)) {
             throw new SecurityException("Só quem fez a reserva, ou a administração, pode cancelá-la.");
         }
-        if (!CONFIRMADA.equals(reserva.getStatus()) && !AGUARDANDO.equals(reserva.getStatus())) {
+        if (!Set.of(CONFIRMADA, AGUARDANDO, AGUARDANDO_PAGAMENTO).contains(reserva.getStatus())) {
             throw new ConflitoException("Esta reserva já está " + reserva.getStatus().toLowerCase() + ".");
         }
         exigirFutura(reserva, "cancelar");
@@ -220,12 +226,38 @@ public class ReservaService {
             throw new ConflitoException("Esta reserva não está aguardando aprovação.");
         }
         exigirFutura(reserva, novoStatus.equals(CONFIRMADA) ? "aprovar" : "recusar");
-        reserva.setStatus(novoStatus);
+        // Aprovada uma reserva paga, ela ainda aguarda o pagamento
+        reserva.setStatus(CONFIRMADA.equals(novoStatus) ? depoisDaAprovacao(reserva) : novoStatus);
         reserva.setAprovador(decisor);
         return ReservaResponseDTO.from(reservaRepository.save(reserva));
     }
 
+    /** Pagamento manual confirmado pelo admin (CONDO-08.5): AGUARDANDO PAGAMENTO vira CONFIRMADA. */
+    @Transactional
+    public ReservaResponseDTO confirmarPagamento(UUID id, UsuarioAutenticado auth) {
+        if (!isAdmin(auth)) {
+            throw new SecurityException("Só a administração confirma pagamentos.");
+        }
+        var reserva = buscarDoCondominio(id, auth);
+        if (!AGUARDANDO_PAGAMENTO.equals(reserva.getStatus())) {
+            throw new ConflitoException("Esta reserva não está aguardando pagamento.");
+        }
+        // Pode confirmar até o fim da reserva (o pagamento pode ser feito na hora), não depois
+        if (LocalDateTime.of(dataFim(reserva), reserva.getHorarioFim()).isBefore(agora())) {
+            throw new IllegalArgumentException("Esta reserva já terminou.");
+        }
+        reserva.setStatus(CONFIRMADA);
+        reserva.setPagamentoConfirmadoPor(usuarioDe(auth));
+        reserva.setPagamentoConfirmadoEm(agora());
+        return ReservaResponseDTO.from(reservaRepository.save(reserva));
+    }
+
     // ---------------------------------------------------------------------
+
+    // Reserva aprovada (ou que não precisava de aprovação): confirmada se gratuita, aguardando pagamento se paga
+    private static String depoisDaAprovacao(Reserva reserva) {
+        return reserva.getValorTaxa() != null ? AGUARDANDO_PAGAMENTO : CONFIRMADA;
+    }
 
     private Reserva buscarDoCondominio(UUID id, UsuarioAutenticado auth) {
         return reservaRepository.findByIdAndCondominioId(id, auth.getCondominioId())
@@ -264,7 +296,7 @@ public class ReservaService {
         if (status == null || status.isBlank()) return null;
         var normalizado = status.trim().toUpperCase().replace('_', ' ');
         if (!STATUS.contains(normalizado)) {
-            throw new IllegalArgumentException("Status inválido. Use CONFIRMADA, AGUARDANDO_APROVACAO, CANCELADA ou RECUSADA.");
+            throw new IllegalArgumentException("Status inválido. Use CONFIRMADA, AGUARDANDO_APROVACAO, AGUARDANDO_PAGAMENTO, CANCELADA ou RECUSADA.");
         }
         return normalizado;
     }

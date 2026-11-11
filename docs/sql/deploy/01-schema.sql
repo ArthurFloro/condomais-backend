@@ -24,6 +24,8 @@ BEGIN;
         descricao TEXT,
         nome varchar(255) not null,
         regras TEXT,
+        taxa numeric(10,2),
+        instrucoes_pagamento TEXT,
         primary key (id)
     );
 
@@ -120,6 +122,9 @@ BEGIN;
         id uuid not null,
         morador_id uuid not null,
         status varchar(50) not null,
+        valor_taxa numeric(10,2),
+        pagamento_confirmado_por_id uuid,
+        pagamento_confirmado_em timestamp(6),
         primary key (id)
     );
 
@@ -283,6 +288,11 @@ BEGIN;
     alter table if exists historico_chamados 
        add constraint FK40w8rljjfbyiaf0iyqfqlr6nr 
        foreign key (usuario_id) 
+       references usuarios;
+
+    alter table if exists reservas 
+       add constraint fk_reservas_pagamento_confirmado_por 
+       foreign key (pagamento_confirmado_por_id) 
        references usuarios;
 
     alter table if exists reservas 
