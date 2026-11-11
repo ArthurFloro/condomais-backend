@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -123,16 +124,40 @@ public class CondominioService {
         return TorreResponseDTO.from(torreRepository.save(torre));
     }
 
+    /**
+     * Exclui a torre junto com as unidades dela, para corrigir uma torre cadastrada errada (andares ou unidades
+     * digitados errado no assistente). Só quando nenhuma unidade foi usada: morador ou usuário vinculado,
+     * encomenda, visita, chamado ou aviso para a torre impedem (409 dizendo o quê), e nada é apagado em cascata.
+     */
     @Transactional
     public void excluirTorre(UUID id, UsuarioAutenticado auth) {
         exigirAdmin(auth);
         var torre = buscarTorreEntidade(id, auth);
 
-        if (apartamentoRepository.existsByTorreId(id)) {
-            throw new ConflitoException("Não é possível excluir a torre: existem apartamentos vinculados.");
+        var impedimentos = impedimentosDaExclusao(torreRepository.contarUso(id));
+        if (!impedimentos.isEmpty()) {
+            throw new ConflitoException("Não é possível excluir a torre \"" + torre.getNome() + "\" porque ela já está em uso: "
+                    + String.join(", ", impedimentos) + ". Só uma torre sem uso pode ser excluída com as unidades.");
         }
 
+        try {
+            apartamentoRepository.deleteAll(apartamentoRepository.findByTorreId(id));
+            apartamentoRepository.flush();
+        } catch (DataIntegrityViolationException e) {
+            // Algo foi vinculado entre a checagem e a exclusão: a transação inteira volta
+            throw new ConflitoException("Não é possível excluir: existem registros vinculados às unidades desta torre.");
+        }
         excluir(torreRepository, torre);
+    }
+
+    private static List<String> impedimentosDaExclusao(TorreRepository.UsoDaTorre uso) {
+        var impedimentos = new ArrayList<String>();
+        if (uso.getMoradores() > 0) impedimentos.add("moradores ou usuários vinculados (" + uso.getMoradores() + ")");
+        if (uso.getEncomendas() > 0) impedimentos.add("encomendas (" + uso.getEncomendas() + ")");
+        if (uso.getVisitas() > 0) impedimentos.add("visitas (" + uso.getVisitas() + ")");
+        if (uso.getChamados() > 0) impedimentos.add("chamados (" + uso.getChamados() + ")");
+        if (uso.getAvisos() > 0) impedimentos.add("avisos direcionados à torre (" + uso.getAvisos() + ")");
+        return impedimentos;
     }
 
     // ---------------------------------------------------------------------
