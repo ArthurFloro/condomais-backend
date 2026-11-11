@@ -24,6 +24,8 @@ import java.util.UUID;
 /**
  * Cadastro de usuários pela Administração. Tudo é escopado pelo condomínio do token de quem
  * chama: não há como listar ou alterar usuários de outro condomínio.
+ * O morador tem unidade e vínculo obrigatórios; o administrador (síndico) pode ter, opcionalmente, quando também mora
+ * no condomínio: aí ele conta como morador da unidade para ocupação, encomendas, reservas e visitas.
  */
 @Service
 public class UsuarioService {
@@ -134,7 +136,8 @@ public class UsuarioService {
 
         Apartamento apartamento = null;
         String vinculo = null;
-        if ("MORADOR".equals(perfil)) {
+        // Morador sempre tem unidade; administrador só quando também mora no condomínio (unidade informada)
+        if ("MORADOR".equals(perfil) || ("ADMIN".equals(perfil) && dados.apartamentoId() != null)) {
             if (dados.apartamentoId() == null) {
                 throw new IllegalArgumentException("Informe a unidade do morador.");
             }
@@ -166,6 +169,13 @@ public class UsuarioService {
         if (!"ADMIN".equals(perfil)) {
             throw new SecurityException("Apenas administradores podem gerenciar usuários.");
         }
+    }
+
+    /** Mora no condomínio: morador, ou administrador (síndico) com unidade vinculada. */
+    public static boolean moraNoCondominio(Usuario usuario) {
+        if (usuario == null || usuario.getApartamento() == null) return false;
+        var perfil = normalizarPerfil(usuario.getPerfil());
+        return "MORADOR".equals(perfil) || "ADMIN".equals(perfil);
     }
 
     // Aceita variações já existentes no banco (Admin, Administrador, Portaria, Porteiro...)

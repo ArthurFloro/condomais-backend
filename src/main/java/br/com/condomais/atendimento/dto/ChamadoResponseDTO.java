@@ -19,6 +19,7 @@ public record ChamadoResponseDTO(
         UUID apartamentoId,         // nulo = área comum ou assunto do condomínio
         String apartamentoNumero,
         String torreNome,
+        UUID solicitanteId,         // quem abriu (a visão de morador do síndico mostra só os dele)
         String solicitanteNome,
         String imagemUrl,
         String responsavelExterno,
@@ -37,6 +38,7 @@ public record ChamadoResponseDTO(
                 apartamento != null ? apartamento.getId() : null,
                 apartamento != null ? apartamento.getNumero() : null,
                 torre != null ? torre.getNome() : null,
+                chamado.getSolicitante() != null ? chamado.getSolicitante().getId() : null,
                 chamado.getSolicitante() != null ? chamado.getSolicitante().getNome() : null,
                 chamado.getImagemUrl(), chamado.getResponsavelExterno(), chamado.getContatoExterno(),
                 chamado.getDataPrevisaoAtendimento(), chamado.getDataAbertura(), chamado.getDataEncerramento(),

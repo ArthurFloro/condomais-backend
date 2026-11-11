@@ -3,7 +3,6 @@ package br.com.condomais.plataforma.service;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.auth.service.UsuarioService;
-import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.Condominio;
 import br.com.condomais.condominio.repository.CondominioRepository;
 import br.com.condomais.condominio.service.OcupacaoUnidadeService;
@@ -97,28 +96,29 @@ public class PlataformaService {
         var condominio = buscarCondominio(id);
 
         Usuario novo;
-        Apartamento unidadeAnterior = null;
         if (dados.usuarioId() != null) {
-            // Promoção de quem já é do condomínio: administrador não tem unidade nem vínculo
+            // Promoção de quem já é do condomínio. Um morador promovido continua morando na unidade (o síndico
+            // também é morador), então unidade e vínculo ficam; um porteiro promovido não tem unidade.
             novo = usuarioRepository.findByIdAndCondominioId(dados.usuarioId(), id)
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado neste condomínio."));
             novo.setPerfil("ADMIN");
-            unidadeAnterior = novo.getApartamento();
-            novo.setApartamento(null);
-            novo.setVinculo(null);
             novo.setStatus("ATIVO");
         } else {
             novo = novoAdmin(condominio, new DadosAdminDTO(dados.nome(), dados.cpf(), dados.email(), dados.telefone()));
         }
         var adminId = usuarioRepository.save(novo).getId();
-        // Um morador promovido deixa a unidade, que pode ficar livre, e as visitas que ele liberou ali perdem a validade
-        ocupacaoUnidadeService.recalcular(unidadeAnterior);
-        visitaService.revogarAutorizacoesDoMorador(novo, unidadeAnterior);
+        ocupacaoUnidadeService.recalcular(novo.getApartamento());
 
-        // O condomínio fica com um administrador só: os anteriores perdem o acesso, mas continuam no histórico
+        // O condomínio fica com um administrador só: os anteriores perdem o acesso, mas continuam no histórico.
+        // Quem morava no condomínio sai da unidade como um morador desativado: ela é recalculada e as visitas
+        // que ele tinha liberado deixam de valer.
         usuarioRepository.findByCondominioId(id).stream()
                 .filter(u -> isAdmin(u) && !u.getId().equals(adminId))
-                .forEach(u -> u.setStatus("INATIVO"));
+                .forEach(u -> {
+                    u.setStatus("INATIVO");
+                    ocupacaoUnidadeService.recalcular(u.getApartamento());
+                    visitaService.revogarAutorizacoesDoMorador(u, u.getApartamento());
+                });
 
         return resposta(condominio);
     }

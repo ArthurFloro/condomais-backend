@@ -282,4 +282,61 @@ class UsuarioServiceTest {
         verify(ocupacaoUnidadeService).recalcular(apartamento);
         verify(visitaService).revogarAutorizacoesDoMorador(morador, apartamento);
     }
+
+    // ---------------------------------------------------------------------
+    // Administrador (síndico) que também mora no condomínio
+    // ---------------------------------------------------------------------
+
+    @Test
+    void adminPodeTerUnidadeEVinculoQuandoMoraNoCondominio() {
+        var unidade = apartamento();
+        when(condominioRepository.getReferenceById(condominio.getId())).thenReturn(condominio);
+        when(apartamentoRepository.findByIdAndCondominioId(unidade.getId(), condominio.getId())).thenReturn(Optional.of(unidade));
+        when(usuarioRepository.save(any())).thenAnswer(invocacao -> invocacao.getArgument(0));
+
+        var resposta = service.cadastrar(new UsuarioDTO("Síndico", CPF_VALIDO, null, null, "ADMIN", unidade.getId(), "proprietario"), authAdmin);
+
+        assertEquals("ADMIN", resposta.perfil());
+        assertEquals(unidade.getId(), resposta.apartamentoId());
+        assertEquals("PROPRIETARIO", resposta.vinculo());
+        // Conta como morador da unidade: ela é recalculada (fica OCUPADO)
+        verify(ocupacaoUnidadeService).recalcular(unidade);
+    }
+
+    @Test
+    void adminSemUnidadeContinuaSemUnidadeEPortariaNuncaTem() {
+        when(condominioRepository.getReferenceById(condominio.getId())).thenReturn(condominio);
+        when(usuarioRepository.save(any())).thenAnswer(invocacao -> invocacao.getArgument(0));
+
+        assertNull(service.cadastrar(new UsuarioDTO("Adm", CPF_VALIDO, null, null, "ADMIN", null, null), authAdmin).apartamentoId());
+        // A portaria não mora pela conta de trabalho: unidade enviada é ignorada
+        assertNull(service.cadastrar(new UsuarioDTO("Porteiro", "529.982.247-25", null, null, "PORTARIA", UUID.randomUUID(), "PROPRIETARIO"), authAdmin).apartamentoId());
+        verifyNoInteractions(apartamentoRepository);
+    }
+
+    @Test
+    void adminComUnidadePrecisaDeVinculoValido() {
+        var unidade = apartamento();
+        when(apartamentoRepository.findByIdAndCondominioId(unidade.getId(), condominio.getId())).thenReturn(Optional.of(unidade));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.cadastrar(new UsuarioDTO("Síndico", CPF_VALIDO, null, null, "ADMIN", unidade.getId(), null), authAdmin));
+        verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void moraNoCondominioSoMoradorOuAdminComUnidade() {
+        var unidade = apartamento();
+        var adminMorador = usuario("ADMIN");
+        adminMorador.setApartamento(unidade);
+        var porteiro = usuario("PORTARIA");
+        porteiro.setApartamento(unidade);
+        var morador = usuario("MORADOR");
+        morador.setApartamento(unidade);
+
+        assertTrue(UsuarioService.moraNoCondominio(adminMorador));
+        assertTrue(UsuarioService.moraNoCondominio(morador));
+        assertFalse(UsuarioService.moraNoCondominio(porteiro));
+        assertFalse(UsuarioService.moraNoCondominio(usuario("ADMIN")));
+    }
 }

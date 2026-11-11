@@ -523,4 +523,45 @@ class VisitaServiceTest {
         assertEquals(List.of(daPortaria.getId(), dele.getId()), ids);
         assertThrows(RecursoNaoEncontradoException.class, () -> service.buscar(doAnterior.getId(), auth(morador101)));
     }
+
+    // ---------------------------------------------------------------------
+    // Síndico que também mora no condomínio
+    // ---------------------------------------------------------------------
+
+    @Test
+    void adminQueMoraNoCondominioAutorizaVisitaDaPropriaUnidadeComoMorador() {
+        var sindico = usuario("ADMIN", "Síndico", unidade101);
+        when(usuarioRepository.findById(sindico.getId())).thenReturn(Optional.of(sindico));
+        when(visitanteRepository.findByCondominioIdAndCpf(condominio.getId(), CPF)).thenReturn(Optional.empty());
+        salvarDevolveOArgumento();
+
+        // Mesmo pedindo outra unidade, vale a dele, e a visita já nasce autorizada (como a do morador)
+        var resposta = service.cadastrar(pedido(unidade102.getId(), null, null), auth(sindico));
+
+        assertEquals("AUTORIZADO", resposta.status());
+        assertEquals(unidade101.getId(), resposta.apartamentoId());
+    }
+
+    @Test
+    void adminQueMoraNoCondominioDecideSoAsPendentesDaPropriaUnidade() {
+        var sindico = usuario("ADMIN", "Síndico", unidade101);
+        when(usuarioRepository.findById(sindico.getId())).thenReturn(Optional.of(sindico));
+        var daUnidade = visitaAgora(unidade101, "PENDENTE");
+        var deOutra = visitaAgora(unidade102, "PENDENTE");
+        when(visitaRepository.findByIdAndCondominioId(daUnidade.getId(), condominio.getId())).thenReturn(Optional.of(daUnidade));
+        when(visitaRepository.findByIdAndCondominioId(deOutra.getId(), condominio.getId())).thenReturn(Optional.of(deOutra));
+        when(visitaRepository.save(any(Visita.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals("AUTORIZADO", service.autorizar(daUnidade.getId(), auth(sindico)).status());
+        assertSame(sindico, daUnidade.getMorador());
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.recusar(deOutra.getId(), auth(sindico)));
+    }
+
+    @Test
+    void adminSemUnidadeContinuaSoConsultando() {
+        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+
+        assertThrows(SecurityException.class, () -> service.cadastrar(pedido(unidade101.getId(), null, true), auth(admin)));
+        assertThrows(SecurityException.class, () -> service.autorizar(UUID.randomUUID(), auth(admin)));
+    }
 }

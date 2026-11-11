@@ -156,10 +156,14 @@ class PlataformaServiceTest {
     }
 
     @Test
-    void promoverMoradorTiraUnidadeEVinculoEDesativaAdminAnterior() {
+    void promoverMoradorMantemAUnidadeEDesativaAdminAnterior() {
         var anterior = usuario("ADMIN");
+        var unidadeDoAnterior = new Apartamento();
+        unidadeDoAnterior.setId(UUID.randomUUID());
+        anterior.setApartamento(unidadeDoAnterior); // o síndico anterior também morava no condomínio
         var morador = usuario("MORADOR");
         var unidade = new Apartamento();
+        unidade.setId(UUID.randomUUID());
         morador.setApartamento(unidade);
         morador.setVinculo("PROPRIETARIO");
         when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
@@ -169,12 +173,15 @@ class PlataformaServiceTest {
 
         var resposta = service.trocarAdmin(condominio.getId(), new TrocaAdminDTO(morador.getId(), null, null, null, null), master);
 
+        // O síndico promovido continua morando na unidade, com o mesmo vínculo
         assertEquals("ADMIN", morador.getPerfil());
-        assertNull(morador.getApartamento());
-        verify(ocupacaoUnidadeService).recalcular(unidade);
-        assertNull(morador.getVinculo());
+        assertSame(unidade, morador.getApartamento());
+        assertEquals("PROPRIETARIO", morador.getVinculo());
         assertEquals("ATIVO", morador.getStatus());
+        // O anterior é desativado e sai da unidade como um morador desativado
         assertEquals("INATIVO", anterior.getStatus());
+        verify(ocupacaoUnidadeService).recalcular(unidadeDoAnterior);
+        verify(visitaService).revogarAutorizacoesDoMorador(anterior, unidadeDoAnterior);
         // Os dois aparecem como administradores, mas só o promovido continua ativo
         var ativos = resposta.administradores().stream().filter(a -> "ATIVO".equals(a.status())).map(a -> a.id()).toList();
         assertEquals(List.of(morador.getId()), ativos);
