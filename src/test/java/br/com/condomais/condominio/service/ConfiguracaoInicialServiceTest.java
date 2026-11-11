@@ -70,7 +70,7 @@ class ConfiguracaoInicialServiceTest {
     }
 
     private static ConfiguracaoInicialDTO.Torre torre(String nome, int andares, int porAndar, int digitos, String separador) {
-        return new ConfiguracaoInicialDTO.Torre(nome, andares, porAndar, 1, 1, digitos, separador);
+        return new ConfiguracaoInicialDTO.Torre(nome, andares, porAndar, 1, 1, digitos, separador, null);
     }
 
     private static ConfiguracaoInicialDTO dados(List<ConfiguracaoInicialDTO.Torre> torres, List<ConfiguracaoInicialDTO.AreaComum> areas) {
@@ -101,9 +101,50 @@ class ConfiguracaoInicialServiceTest {
 
     @Test
     void separadorEDigitosEntramNoNumero() {
-        service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 2, 5, 3, 3, "-")), null), admin);
+        service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 2, 5, 3, 3, "-", null)), null), admin);
 
         assertEquals(List.of("5-003", "5-004", "6-003", "6-004"), unidadesGravadas.stream().map(Apartamento::getNumero).toList());
+    }
+
+    @Test
+    void terreoComApartamentosGeraOAndarZeroAlemDosAndaresInformados() {
+        // 2 andares + térreo com apartamentos, 2 por andar: andares 0, 1 e 2 (o térreo não conta nos andares)
+        var resposta = service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 2, 1, 1, 2, "", "com_apartamentos")), null), admin);
+
+        assertEquals(6, resposta.unidades());
+        assertEquals(List.of("001", "002", "101", "102", "201", "202"), unidadesGravadas.stream().map(Apartamento::getNumero).toList());
+        assertEquals(List.of(0, 0, 1, 1, 2, 2), unidadesGravadas.stream().map(Apartamento::getAndar).toList());
+    }
+
+    @Test
+    void terreoComApartamentosUsaOSeparadorEValeNoEdificio() {
+        var edificio = new ConfiguracaoInicialDTO.Edificio(1, 2, 1, 1, 2, "-", "COM_APARTAMENTOS");
+        var dados = new ConfiguracaoInicialDTO("EDIFICIO", "Rua X, 1", "Recife", "PE", null, null, edificio, null);
+
+        service.configurar(dados, admin);
+
+        assertEquals(List.of("0-01", "0-02", "1-01", "1-02"), unidadesGravadas.stream().map(Apartamento::getNumero).toList());
+    }
+
+    @Test
+    void terreoSemApartamentosOuSemTerreoNaoGeraUnidadeNoAndarZero() {
+        for (var terreo : java.util.Arrays.asList("SEM_APARTAMENTOS", "SEM_TERREO", null)) {
+            unidadesGravadas.clear();
+            condominio.setConfiguracaoInicial("PENDENTE");
+            service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 2, 1, 1, 2, "", terreo)), null), admin);
+
+            assertEquals(List.of("101", "102", "201", "202"), unidadesGravadas.stream().map(Apartamento::getNumero).toList(), String.valueOf(terreo));
+        }
+    }
+
+    @Test
+    void terreoInvalidoEhRecusadoEContaNoLimiteDeUnidades() {
+        assertThrows(IllegalArgumentException.class,
+                () -> service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 2, 1, 1, 2, "", "PILOTIS")), null), admin));
+        // 50 andares x 100 = 5.000 cabe; com o térreo vira 5.100 e passa do limite
+        assertThrows(IllegalArgumentException.class,
+                () -> service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 50, 100, 1, 1, 3, "-", "COM_APARTAMENTOS")), null), admin));
+        verify(apartamentoRepository, never()).saveAll(anyList());
     }
 
     @Test
@@ -179,7 +220,7 @@ class ConfiguracaoInicialServiceTest {
 
     @Test
     void verticalGravaOAndarDeCadaUnidade() {
-        service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 1, 3, 1, 2, "")), null), admin);
+        service.configurar(dados(List.of(new ConfiguracaoInicialDTO.Torre("A", 2, 1, 3, 1, 2, "", null)), null), admin);
 
         assertEquals(List.of(3, 4), unidadesGravadas.stream().map(Apartamento::getAndar).toList());
         assertEquals("VERTICAL", condominio.getModelo());
@@ -212,7 +253,7 @@ class ConfiguracaoInicialServiceTest {
 
     @Test
     void edificioGeraUnidadesPorAndarSemTorre() {
-        var edificio = new ConfiguracaoInicialDTO.Edificio(2, 2, 1, 1, 2, "");
+        var edificio = new ConfiguracaoInicialDTO.Edificio(2, 2, 1, 1, 2, "", null);
         var dados = new ConfiguracaoInicialDTO("EDIFICIO", "Rua Y, 10", "Recife", "PE", null, null, edificio, null);
 
         var resposta = service.configurar(dados, admin);

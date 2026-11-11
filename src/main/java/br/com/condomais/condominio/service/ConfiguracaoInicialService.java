@@ -28,6 +28,10 @@ import java.util.*;
  *
  * Os três modelos usam as mesmas tabelas: VERTICAL = torres com unidades por andar; HORIZONTAL = ruas
  * (gravadas como torres) com casas numeradas em sequência; EDIFICIO = unidades por andar sem torre.
+ *
+ * Térreo (CONDO-01): COM_APARTAMENTOS gera também o andar 0, com as mesmas unidades por andar e a mesma regra
+ * de numeração ("0" + separador + sequência: 001, 002 ou 0-01), além dos andares informados. SEM_APARTAMENTOS
+ * (padrão) e SEM_TERREO não geram nada no andar 0: nenhuma unidade fictícia no térreo vazio.
  */
 @Service
 public class ConfiguracaoInicialService {
@@ -44,6 +48,8 @@ public class ConfiguracaoInicialService {
     static final int MAX_SEPARADOR = 3;
 
     private static final Set<String> MODELOS = Set.of("VERTICAL", "HORIZONTAL", "EDIFICIO");
+    static final String TERREO_COM_APARTAMENTOS = "COM_APARTAMENTOS";
+    private static final Set<String> TERREOS = Set.of(TERREO_COM_APARTAMENTOS, "SEM_APARTAMENTOS", "SEM_TERREO");
     private static final Set<String> UFS = Set.of("AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS",
             "MG", "PA", "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO");
 
@@ -136,7 +142,7 @@ public class ConfiguracaoInicialService {
             var nome = nomeDoAgrupador(dados.nome(), "torre", nomes, condominio);
             var torre = novaTorre(nome, condominio);
             var unidades = gerarPorAndar(dados.andares(), dados.unidadesPorAndar(), dados.andarInicial(), dados.sequenciaInicial(),
-                    dados.digitos(), dados.separador(), "na torre \"" + nome + "\"", torre, condominio, contador);
+                    dados.digitos(), dados.separador(), dados.terreo(), "na torre \"" + nome + "\"", torre, condominio, contador);
             resultado.add(new Grupo(torre, unidades));
         }
         return resultado;
@@ -175,7 +181,7 @@ public class ConfiguracaoInicialService {
             throw new IllegalArgumentException("Informe a estrutura do edifício.");
         }
         var unidades = gerarPorAndar(dados.andares(), dados.unidadesPorAndar(), dados.andarInicial(), dados.sequenciaInicial(),
-                dados.digitos(), dados.separador(), "no edifício", null, condominio, new int[1]);
+                dados.digitos(), dados.separador(), dados.terreo(), "no edifício", null, condominio, new int[1]);
         for (var unidade : unidades) {
             if (apartamentoRepository.existsByCondominioIdAndTorreIsNullAndNumero(condominio.getId(), unidade.getNumero())) {
                 throw new ConflitoException("Já existe uma unidade \"" + unidade.getNumero() + "\" neste condomínio.");
@@ -186,7 +192,7 @@ public class ConfiguracaoInicialService {
 
     private List<Apartamento> gerarPorAndar(Integer andaresInformados, Integer porAndarInformado, Integer andarInicialInformado,
                                             Integer sequenciaInicialInformada, Integer digitosInformados, String separadorInformado,
-                                            String onde, Torre torre, Condominio condominio, int[] contador) {
+                                            String terreoInformado, String onde, Torre torre, Condominio condominio, int[] contador) {
         var andares = numero(andaresInformados, "andares", onde, MAX_ANDARES);
         var porAndar = numero(porAndarInformado, "unidades por andar", onde, MAX_UNIDADES_POR_ANDAR);
         var andarInicial = numero(andarInicialInformado, "andar inicial", onde, MAX_ANDAR_INICIAL);
@@ -196,12 +202,20 @@ public class ConfiguracaoInicialService {
         if (separador.length() > MAX_SEPARADOR) {
             throw new IllegalArgumentException("O separador " + onde + " deve ter no máximo " + MAX_SEPARADOR + " caracteres.");
         }
-        contador[0] += andares * porAndar;
+        var terreo = terreoInformado == null || terreoInformado.isBlank() ? "SEM_APARTAMENTOS" : terreoInformado.trim().toUpperCase();
+        if (!TERREOS.contains(terreo)) {
+            throw new IllegalArgumentException("Térreo " + onde + " inválido. Use COM_APARTAMENTOS, SEM_APARTAMENTOS ou SEM_TERREO.");
+        }
+        // O térreo com apartamentos vem além dos andares informados ("10 andares" + térreo = andares 0 a 10)
+        var andaresGerados = new ArrayList<Integer>();
+        if (TERREO_COM_APARTAMENTOS.equals(terreo)) andaresGerados.add(0);
+        for (int andar = andarInicial; andar < andarInicial + andares; andar++) andaresGerados.add(andar);
+        contador[0] += andaresGerados.size() * porAndar;
         limiteTotal(contador[0]);
 
         var unidades = new ArrayList<Apartamento>();
         var numeros = new HashSet<String>();
-        for (int andar = andarInicial; andar < andarInicial + andares; andar++) {
+        for (int andar : andaresGerados) {
             for (int sequencia = sequenciaInicial; sequencia < sequenciaInicial + porAndar; sequencia++) {
                 var numero = andar + separador + String.format("%0" + digitos + "d", sequencia);
                 // Ex.: sem separador e com 1 dígito, 1º andar unidade 11 e 11º andar unidade 1 viram "111"
