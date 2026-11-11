@@ -368,4 +368,84 @@ class CondominioServiceTest {
         assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, null, null, java.time.LocalTime.of(8, 0), java.time.LocalTime.of(8, 0)), admin));
         verify(areaComumRepository, never()).save(any());
     }
+
+    // ---------------------------------------------------------------------
+    // Excluir torre com as unidades: só sem uso, e diz o que impede
+    // ---------------------------------------------------------------------
+
+    private static TorreRepository.UsoDaTorre uso(long moradores, long encomendas, long visitas, long chamados, long avisos) {
+        return new TorreRepository.UsoDaTorre() {
+            public long getMoradores() { return moradores; }
+            public long getEncomendas() { return encomendas; }
+            public long getVisitas() { return visitas; }
+            public long getChamados() { return chamados; }
+            public long getAvisos() { return avisos; }
+        };
+    }
+
+    @Test
+    void torreSemUsoEhExcluidaComAsUnidades() {
+        var torre = torre();
+        var unidades = List.of(new Apartamento(), new Apartamento());
+        when(torreRepository.findByIdAndCondominioId(torre.getId(), condominio.getId())).thenReturn(Optional.of(torre));
+        when(torreRepository.contarUso(torre.getId())).thenReturn(uso(0, 0, 0, 0, 0));
+        when(apartamentoRepository.findByTorreId(torre.getId())).thenReturn(unidades);
+
+        service.excluirTorre(torre.getId(), admin);
+
+        var ordem = inOrder(apartamentoRepository, torreRepository);
+        ordem.verify(apartamentoRepository).deleteAll(unidades);
+        ordem.verify(apartamentoRepository).flush();
+        ordem.verify(torreRepository).delete(torre);
+    }
+
+    @Test
+    void torreEmUsoNaoEhExcluidaEAMensagemDizOQueImpede() {
+        var torre = torre();
+        when(torreRepository.findByIdAndCondominioId(torre.getId(), condominio.getId())).thenReturn(Optional.of(torre));
+        when(torreRepository.contarUso(torre.getId())).thenReturn(uso(2, 1, 0, 0, 3));
+
+        var erro = assertThrows(ConflitoException.class, () -> service.excluirTorre(torre.getId(), admin));
+
+        assertTrue(erro.getMessage().contains("Torre A"), erro.getMessage());
+        assertTrue(erro.getMessage().contains("moradores ou usuários vinculados (2)"), erro.getMessage());
+        assertTrue(erro.getMessage().contains("encomendas (1)"), erro.getMessage());
+        assertTrue(erro.getMessage().contains("avisos direcionados à torre (3)"), erro.getMessage());
+        assertFalse(erro.getMessage().contains("visitas"), erro.getMessage());
+        verify(apartamentoRepository, never()).deleteAll(any());
+        verify(torreRepository, never()).delete(any());
+    }
+
+    @Test
+    void cadaUsoDasUnidadesImpedeAExclusao() {
+        var torre = torre();
+        when(torreRepository.findByIdAndCondominioId(torre.getId(), condominio.getId())).thenReturn(Optional.of(torre));
+        for (var usoDaTorre : List.of(uso(1, 0, 0, 0, 0), uso(0, 1, 0, 0, 0), uso(0, 0, 1, 0, 0), uso(0, 0, 0, 1, 0), uso(0, 0, 0, 0, 1))) {
+            when(torreRepository.contarUso(torre.getId())).thenReturn(usoDaTorre);
+            assertThrows(ConflitoException.class, () -> service.excluirTorre(torre.getId(), admin));
+        }
+        verify(apartamentoRepository, never()).deleteAll(any());
+    }
+
+    @Test
+    void vinculoCriadoEntreAChecagemEAExclusaoViraConflito() {
+        var torre = torre();
+        when(torreRepository.findByIdAndCondominioId(torre.getId(), condominio.getId())).thenReturn(Optional.of(torre));
+        when(torreRepository.contarUso(torre.getId())).thenReturn(uso(0, 0, 0, 0, 0));
+        when(apartamentoRepository.findByTorreId(torre.getId())).thenReturn(List.of(new Apartamento()));
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("fk")).when(apartamentoRepository).flush();
+
+        assertThrows(ConflitoException.class, () -> service.excluirTorre(torre.getId(), admin));
+        verify(torreRepository, never()).delete(any());
+    }
+
+    @Test
+    void torreDeOutroCondominioNaoEhExcluida() {
+        var id = UUID.randomUUID();
+        when(torreRepository.findByIdAndCondominioId(id, condominio.getId())).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.excluirTorre(id, admin));
+        verify(torreRepository, never()).contarUso(any());
+        verify(apartamentoRepository, never()).deleteAll(any());
+    }
 }

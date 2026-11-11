@@ -98,7 +98,9 @@ public class CondominioController {
     }
 
     @DeleteMapping("/torres/{id}")
-    @Operation(summary = "Excluir torre (somente ADMIN)", description = "Remove a torre. Bloqueado se houver apartamentos ou outros registros vinculados.")
+    @Operation(summary = "Excluir torre (somente ADMIN)", description = "Remove a torre junto com as unidades dela (para corrigir uma torre cadastrada errada). "
+            + "Bloqueado (409, dizendo o quê) se alguma unidade tiver morador ou usuário vinculado, encomenda, visita ou chamado, "
+            + "ou se houver aviso direcionado à torre.")
     public ResponseEntity<Void> excluirTorre(@PathVariable UUID id) {
         condominioService.excluirTorre(id, auth());
         return ResponseEntity.noContent().build();
