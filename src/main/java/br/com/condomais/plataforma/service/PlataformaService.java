@@ -10,6 +10,7 @@ import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
 import br.com.condomais.plataforma.dto.*;
+import br.com.condomais.interativo.service.ReservaService;
 import br.com.condomais.portaria.service.VisitaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
@@ -33,6 +34,7 @@ public class PlataformaService {
     @Autowired private UsuarioRepository usuarioRepository;
     @Autowired private OcupacaoUnidadeService ocupacaoUnidadeService;
     @Autowired private VisitaService visitaService;
+    @Autowired private ReservaService reservaService;
 
     @Transactional(readOnly = true)
     public List<CondominioPlataformaDTO> listar(UsuarioAutenticado auth) {
@@ -118,6 +120,7 @@ public class PlataformaService {
                     u.setStatus("INATIVO");
                     ocupacaoUnidadeService.recalcular(u.getApartamento());
                     visitaService.revogarAutorizacoesDoMorador(u, u.getApartamento());
+                    reservaService.cancelarFuturasDoMorador(u);
                 });
 
         return resposta(condominio);

@@ -11,6 +11,7 @@ import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.interativo.service.ReservaService;
 import br.com.condomais.portaria.service.VisitaService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -47,6 +48,9 @@ public class UsuarioService {
 
     @Autowired
     private VisitaService visitaService;
+
+    @Autowired
+    private ReservaService reservaService;
 
     @Transactional(readOnly = true)
     public List<UsuarioResponseDTO> listar(UsuarioAutenticado auth) {
@@ -100,6 +104,11 @@ public class UsuarioService {
         if (unidadeAnterior != null && (salvo.getApartamento() == null || !unidadeAnterior.getId().equals(salvo.getApartamento().getId()))) {
             visitaService.revogarAutorizacoesDoMorador(salvo, unidadeAnterior);
         }
+        // Deixou de morar no condomínio (ficou sem unidade): as reservas futuras dele são canceladas.
+        // Só mudar de unidade não cancela: ele continua morador e pode usar o que reservou.
+        if (unidadeAnterior != null && salvo.getApartamento() == null) {
+            reservaService.cancelarFuturasDoMorador(salvo);
+        }
         return UsuarioResponseDTO.from(salvo);
     }
 
@@ -113,8 +122,12 @@ public class UsuarioService {
         usuario.setStatus(ativo ? "ATIVO" : "INATIVO");
         var salvo = usuarioRepository.save(usuario);
         ocupacaoUnidadeService.recalcular(salvo.getApartamento());
-        // Desativado: as autorizações de visita que ele deu deixam de valer (reativar não as devolve)
-        if (!ativo) visitaService.revogarAutorizacoesDoMorador(salvo, salvo.getApartamento());
+        // Desativado: as autorizações de visita que ele deu e as reservas futuras dele deixam de valer
+        // (reativar não as devolve)
+        if (!ativo) {
+            visitaService.revogarAutorizacoesDoMorador(salvo, salvo.getApartamento());
+            reservaService.cancelarFuturasDoMorador(salvo);
+        }
         return UsuarioResponseDTO.from(salvo);
     }
 

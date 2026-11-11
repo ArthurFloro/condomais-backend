@@ -32,6 +32,8 @@ import java.util.UUID;
  * - A reserva pode passar da meia-noite (22h às 02h, com dataFim no dia seguinte), até 24 horas; o conflito
  *   compara data e hora completas.
  * - Quem pediu (ou o admin) cancela enquanto a reserva não passou.
+ * - Quem deixa de morar no condomínio (desativado, ou sem unidade) tem as reservas futuras canceladas na hora,
+ *   liberando o horário (CONDO-11.5). Mudar de unidade dentro do condomínio não cancela.
  * - Administração e portaria veem todas; o morador vê as da própria unidade. A agenda de uma área
  *   (horários ocupados, sem nomes) é aberta a todos do condomínio.
  */
@@ -178,6 +180,21 @@ public class ReservaService {
         exigirFutura(reserva, "cancelar");
         reserva.setStatus(CANCELADA);
         return ReservaResponseDTO.from(reservaRepository.save(reserva));
+    }
+
+    /**
+     * O morador deixou de morar no condomínio: as reservas dele que ainda não começaram (confirmadas ou aguardando
+     * aprovação) viram CANCELADA e o horário fica livre. As que já começaram ou passaram ficam como estão.
+     */
+    @Transactional
+    public void cancelarFuturasDoMorador(Usuario morador) {
+        if (morador == null || morador.getId() == null) return;
+        var agora = agora();
+        var futuras = reservaRepository.listarAtivasDoMorador(morador.getId()).stream()
+                .filter(r -> LocalDateTime.of(r.getDataReserva(), r.getHorarioInicio()).isAfter(agora))
+                .toList();
+        futuras.forEach(r -> r.setStatus(CANCELADA));
+        reservaRepository.saveAll(futuras);
     }
 
     @Transactional
