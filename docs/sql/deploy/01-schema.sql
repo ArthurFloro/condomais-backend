@@ -31,6 +31,7 @@ BEGIN;
         data_validade date,
         created_at timestamp(6) not null,
         autor_id uuid not null,
+        chamado_id uuid,
         condominio_id uuid not null,
         id uuid not null,
         torre_id uuid,
@@ -196,6 +197,11 @@ BEGIN;
        add constraint FK51o0xys1vgdiubtr2rjbvim4q 
        foreign key (condominio_id) 
        references condominios;
+
+    alter table if exists avisos 
+       add constraint fk_avisos_chamado 
+       foreign key (chamado_id) 
+       references chamados;
 
     alter table if exists avisos 
        add constraint FKkb8heyukofolk2lek3w4u941a 

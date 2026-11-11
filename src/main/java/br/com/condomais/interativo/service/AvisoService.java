@@ -1,5 +1,7 @@
 package br.com.condomais.interativo.service;
 
+import br.com.condomais.atendimento.model.Chamado;
+import br.com.condomais.atendimento.repository.ChamadoRepository;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.auth.service.UsuarioService;
 import br.com.condomais.condominio.model.Torre;
@@ -17,14 +19,19 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
 /**
  * Comunicados do condomínio do token. Administração e portaria publicam, editam, excluem e veem todos,
  * inclusive os vencidos; o morador vê só os ativos (dentro da validade) que são gerais ou da torre dele.
  * Um comunicado de outro condomínio, ou que o morador não pode ver, responde 404.
+ * A administração pode ligar o comunicado a um chamado, pelo campo chamadoId ou mencionando no texto o código
+ * que as telas mostram (@3F2A1C9E). Um comunicado se refere a um chamado só; a portaria não liga chamados.
  */
 @Service
 public class AvisoService {
@@ -32,6 +39,8 @@ public class AvisoService {
     // A validade é uma data do condomínio, não do servidor (o Render roda em UTC)
     private static final ZoneId FUSO = ZoneId.of("America/Sao_Paulo");
     private static final Set<String> PRIORIDADES = Set.of("NORMAL", "URGENTE");
+    // @ seguido dos 8 caracteres do código, fora de e-mails (nada de letra, número ou ponto antes do @)
+    private static final Pattern MENCAO = Pattern.compile("(?<![\\w.])@([0-9A-Fa-f]{8})(?![\\w])");
 
     @Autowired
     private AvisoRepository avisoRepository;
@@ -39,6 +48,8 @@ public class AvisoService {
     private UsuarioRepository usuarioRepository;
     @Autowired
     private TorreRepository torreRepository;
+    @Autowired
+    private ChamadoRepository chamadoRepository;
 
     @Transactional(readOnly = true)
     public List<AvisoResponseDTO> listar(boolean apenasAtivos, UsuarioAutenticado auth) {
@@ -124,6 +135,47 @@ public class AvisoService {
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Torre não encontrada."));
         }
         aviso.setTorre(torre);
+        aviso.setChamado(chamadoDoAviso(dados, auth));
+    }
+
+    // O escolhido no campo e/ou o mencionado no texto, que precisam ser o mesmo. Sem nenhum dos dois, desliga.
+    private Chamado chamadoDoAviso(RegistroAvisoDTO dados, UsuarioAutenticado auth) {
+        if ("PORTARIA".equals(UsuarioService.normalizarPerfil(auth.getPerfil()))) {
+            if (dados.chamadoId() != null) {
+                throw new SecurityException("A portaria não tem acesso aos chamados e não os vincula a comunicados.");
+            }
+            return null; // uma menção no texto da portaria fica só como texto
+        }
+        Chamado chamado = null;
+        if (dados.chamadoId() != null) {
+            chamado = chamadoRepository.findByIdAndCondominioId(dados.chamadoId(), auth.getCondominioId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Chamado não encontrado."));
+        }
+        var codigos = new LinkedHashSet<String>();
+        var mencoes = MENCAO.matcher(dados.conteudo());
+        while (mencoes.find()) codigos.add(mencoes.group(1).toLowerCase(Locale.ROOT));
+        for (var codigo : codigos) {
+            var mencionado = chamadoPeloCodigo(codigo, auth);
+            if (chamado != null && !chamado.getId().equals(mencionado.getId())) {
+                throw new IllegalArgumentException("Um comunicado se refere a um chamado só: o texto menciona um chamado diferente do selecionado.");
+            }
+            chamado = mencionado;
+        }
+        return chamado;
+    }
+
+    private Chamado chamadoPeloCodigo(String codigo, UsuarioAutenticado auth) {
+        var achados = chamadoRepository.findByCondominioId(auth.getCondominioId()).stream()
+                .filter(c -> c.getId().toString().startsWith(codigo))
+                .toList();
+        var mencao = "@" + codigo.toUpperCase(Locale.ROOT);
+        if (achados.isEmpty()) {
+            throw new IllegalArgumentException("O chamado " + mencao + " não foi encontrado neste condomínio.");
+        }
+        if (achados.size() > 1) {
+            throw new IllegalArgumentException("O código " + mencao + " corresponde a mais de um chamado; escolha no campo Chamado relacionado.");
+        }
+        return achados.get(0);
     }
 
     private Aviso buscarDoCondominio(UUID id, UsuarioAutenticado auth) {

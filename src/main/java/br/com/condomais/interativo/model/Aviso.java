@@ -1,5 +1,6 @@
 package br.com.condomais.interativo.model;
 
+import br.com.condomais.atendimento.model.Chamado;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.condominio.model.Condominio;
 import br.com.condomais.condominio.model.Torre;
@@ -47,4 +48,9 @@ public class Aviso {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "condominio_id", nullable = false)
     private Condominio condominio;
+
+    // Chamado a que o comunicado se refere (ex.: manutenção marcada por causa dele); opcional
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "chamado_id")
+    private Chamado chamado;
 }
