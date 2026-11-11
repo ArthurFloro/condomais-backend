@@ -24,7 +24,8 @@ public record ConfiguracaoInicialDTO(
             Integer andarInicial,
             Integer sequenciaInicial,
             Integer digitos,
-            String separador
+            String separador,
+            String terreo       // COM_APARTAMENTOS, SEM_APARTAMENTOS (padrão) ou SEM_TERREO
     ) {}
 
     /** Casas numeradas em sequência, sem andar: numeroInicial 1 e 2 dígitos → "01", "02"… */
@@ -42,7 +43,8 @@ public record ConfiguracaoInicialDTO(
             Integer andarInicial,
             Integer sequenciaInicial,
             Integer digitos,
-            String separador
+            String separador,
+            String terreo       // COM_APARTAMENTOS, SEM_APARTAMENTOS (padrão) ou SEM_TERREO
     ) {}
 
     public record AreaComum(
