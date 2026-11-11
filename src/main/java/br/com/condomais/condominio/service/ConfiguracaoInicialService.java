@@ -1,6 +1,7 @@
 package br.com.condomais.condominio.service;
 
 import br.com.condomais.auth.service.UsuarioService;
+import br.com.condomais.condominio.dto.AdicaoTorresDTO;
 import br.com.condomais.condominio.dto.ConfiguracaoInicialDTO;
 import br.com.condomais.condominio.dto.ConfiguracaoInicialResponseDTO;
 import br.com.condomais.condominio.model.Apartamento;
@@ -120,6 +121,35 @@ public class ConfiguracaoInicialService {
         condominio.setConfiguracaoInicial("CONCLUIDA");
         condominioRepository.save(condominio);
         return new ConfiguracaoInicialResponseDTO(condominio.getId(), "CONCLUIDA", modelo, agrupadores, unidades, areas.size());
+    }
+
+    /**
+     * Reexecução do Wizard (CONDO-13.4 e 13.5): acrescenta torres novas a um condomínio vertical já configurado,
+     * com a mesma geração da configuração inicial. Só cria: torres e unidades existentes não mudam, e nome de
+     * torre já usado é recusado. A mesma trava do condomínio serializa envios simultâneos.
+     */
+    @Transactional
+    public ConfiguracaoInicialResponseDTO adicionarTorres(AdicaoTorresDTO dados, UsuarioAutenticado auth) {
+        if (!"ADMIN".equals(UsuarioService.normalizarPerfil(auth.getPerfil()))) {
+            throw new SecurityException("Apenas o administrador do condomínio acrescenta torres.");
+        }
+        var condominio = condominioRepository.findParaConfiguracao(auth.getCondominioId())
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Condomínio não encontrado."));
+        if (!condominio.isConfiguracaoConcluida()) {
+            throw new ConflitoException("Conclua a configuração inicial antes de acrescentar torres.");
+        }
+        var modelo = condominio.getModelo() == null ? "VERTICAL" : condominio.getModelo();
+        if (!"VERTICAL".equals(modelo)) {
+            throw new IllegalArgumentException("Acrescentar torres pelo assistente vale só para condomínios com torres (modelo VERTICAL).");
+        }
+        var estrutura = gerarTorres(dados == null ? null : dados.torres(), condominio);
+        var unidades = 0;
+        for (var grupo : estrutura) {
+            torreRepository.save(grupo.torre());
+            apartamentoRepository.saveAll(grupo.unidades());
+            unidades += grupo.unidades().size();
+        }
+        return new ConfiguracaoInicialResponseDTO(condominio.getId(), condominio.getConfiguracaoInicial(), modelo, estrutura.size(), unidades, 0);
     }
 
     // ---------------------------------------------------------------------
