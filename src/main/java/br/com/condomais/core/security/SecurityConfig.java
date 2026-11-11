@@ -45,7 +45,7 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(req -> {
                     // Rotas públicas para login e primeiro acesso
-                    req.requestMatchers("/auth/login", "/auth/primeiro-acesso").permitAll();
+                    req.requestMatchers("/auth/login", "/auth/primeiro-acesso", "/auth/recuperar-senha", "/auth/redefinir-senha").permitAll();
                     // Documentação da API (Swagger UI / OpenAPI); as rotas em si continuam protegidas
                     req.requestMatchers("/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll();
                     // Página de erro do Spring: sem isso, qualquer erro não tratado virava 403
