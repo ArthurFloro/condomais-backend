@@ -8,5 +8,6 @@ public record RegistroAvisoDTO(
         String conteudo,
         String prioridade,
         LocalDate dataValidade,
-        UUID torreId // Se for nulo, o aviso vai para todo o condomínio
+        UUID torreId, // Se for nulo, o aviso vai para todo o condomínio
+        UUID chamadoId // Opcional: chamado relacionado (também pode ser mencionado no texto como @código)
 ) {}

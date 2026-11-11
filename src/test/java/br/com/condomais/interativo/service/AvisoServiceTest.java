@@ -1,5 +1,7 @@
 package br.com.condomais.interativo.service;
 
+import br.com.condomais.atendimento.model.Chamado;
+import br.com.condomais.atendimento.repository.ChamadoRepository;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.condominio.model.Apartamento;
@@ -36,6 +38,7 @@ class AvisoServiceTest {
     @Mock private AvisoRepository avisoRepository;
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private TorreRepository torreRepository;
+    @Mock private ChamadoRepository chamadoRepository;
     @InjectMocks private AvisoService service;
 
     private final LocalDate hoje = LocalDate.now(ZoneId.of("America/Sao_Paulo"));
@@ -178,7 +181,7 @@ class AvisoServiceTest {
         when(usuarioRepository.findById(portaria.getId())).thenReturn(Optional.of(portaria));
         when(avisoRepository.save(any(Aviso.class))).thenAnswer(i -> i.getArgument(0));
 
-        var resposta = service.publicar(new RegistroAvisoDTO(" Água ", "Falta d'água às 14h", null, hoje.plusDays(2), null), auth(portaria));
+        var resposta = service.publicar(new RegistroAvisoDTO(" Água ", "Falta d'água às 14h", null, hoje.plusDays(2), null, null), auth(portaria));
 
         assertEquals("Água", resposta.titulo());
         assertEquals("NORMAL", resposta.prioridade());
@@ -192,7 +195,7 @@ class AvisoServiceTest {
         when(torreRepository.findByIdAndCondominioId(torreA.getId(), condominio.getId())).thenReturn(Optional.of(torreA));
         when(avisoRepository.save(any(Aviso.class))).thenAnswer(i -> i.getArgument(0));
 
-        var resposta = service.publicar(new RegistroAvisoDTO("Pintura", "Hall da torre", "urgente", null, torreA.getId()), auth(admin));
+        var resposta = service.publicar(new RegistroAvisoDTO("Pintura", "Hall da torre", "urgente", null, torreA.getId(), null), auth(admin));
 
         assertEquals("URGENTE", resposta.prioridade());
         assertEquals("Torre A", resposta.torreNome());
@@ -205,7 +208,7 @@ class AvisoServiceTest {
         when(torreRepository.findByIdAndCondominioId(deOutro, condominio.getId())).thenReturn(Optional.empty());
 
         assertThrows(RecursoNaoEncontradoException.class,
-                () -> service.publicar(new RegistroAvisoDTO("T", "C", null, null, deOutro), auth(admin)));
+                () -> service.publicar(new RegistroAvisoDTO("T", "C", null, null, deOutro, null), auth(admin)));
         verify(avisoRepository, never()).save(any());
     }
 
@@ -213,10 +216,10 @@ class AvisoServiceTest {
     void validacoesDaPublicacao() {
         when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
 
-        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO(" ", "C", null, null, null), auth(admin)));
-        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO("T", null, null, null, null), auth(admin)));
-        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO("T", "C", "ALTA", null, null), auth(admin)));
-        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO("T", "C", null, hoje.minusDays(1), null), auth(admin)));
+        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO(" ", "C", null, null, null, null), auth(admin)));
+        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO("T", null, null, null, null, null), auth(admin)));
+        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO("T", "C", "ALTA", null, null, null), auth(admin)));
+        assertThrows(IllegalArgumentException.class, () -> service.publicar(new RegistroAvisoDTO("T", "C", null, hoje.minusDays(1), null, null), auth(admin)));
         verify(avisoRepository, never()).save(any());
     }
 
@@ -227,7 +230,7 @@ class AvisoServiceTest {
         when(avisoRepository.findByIdAndCondominioId(aviso.getId(), condominio.getId())).thenReturn(Optional.of(aviso));
         when(avisoRepository.save(aviso)).thenReturn(aviso);
 
-        var resposta = service.atualizar(aviso.getId(), new RegistroAvisoDTO("Novo título", "Novo texto", "URGENTE", null, null), auth(admin));
+        var resposta = service.atualizar(aviso.getId(), new RegistroAvisoDTO("Novo título", "Novo texto", "URGENTE", null, null, null), auth(admin));
 
         assertEquals("Novo título", resposta.titulo());
         assertNull(resposta.torreId());
@@ -249,11 +252,89 @@ class AvisoServiceTest {
     void moradorNaoPublicaNemEditaNemExclui() {
         var id = UUID.randomUUID();
 
-        assertThrows(SecurityException.class, () -> service.publicar(new RegistroAvisoDTO("T", "C", null, null, null), auth(morador)));
-        assertThrows(SecurityException.class, () -> service.atualizar(id, new RegistroAvisoDTO("T", "C", null, null, null), auth(morador)));
+        assertThrows(SecurityException.class, () -> service.publicar(new RegistroAvisoDTO("T", "C", null, null, null, null), auth(morador)));
+        assertThrows(SecurityException.class, () -> service.atualizar(id, new RegistroAvisoDTO("T", "C", null, null, null, null), auth(morador)));
         assertThrows(SecurityException.class, () -> service.excluir(id, auth(morador)));
         verify(avisoRepository, never()).save(any());
         verify(avisoRepository, never()).delete(any());
         verify(avisoRepository, never()).findByIdAndCondominioId(eq(id), any());
+    }
+
+    // ---------------------------------------------------------------------
+    // Chamado relacionado
+    // ---------------------------------------------------------------------
+
+    private Chamado chamado(String id, String titulo) {
+        var chamado = new Chamado();
+        chamado.setId(UUID.fromString(id));
+        chamado.setTitulo(titulo);
+        chamado.setStatus("EM ATENDIMENTO");
+        return chamado;
+    }
+
+    @Test
+    void adminLigaOChamadoPelaMencaoNoTexto() {
+        var luz = chamado("3f2a1c9e-1111-4222-8333-444455556666", "Falta de luz");
+        var outro = chamado("aaaa0000-1111-4222-8333-444455556666", "Vazamento");
+        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(chamadoRepository.findByCondominioId(condominio.getId())).thenReturn(List.of(luz, outro));
+        when(avisoRepository.save(any(Aviso.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resposta = service.publicar(new RegistroAvisoDTO("Manutenção", "Dado o chamado @3F2A1C9E, a manutenção será amanhã.", null, null, null, null), auth(admin));
+
+        assertEquals(luz.getId(), resposta.chamadoId());
+        assertEquals("#3F2A1C9E", resposta.chamadoCodigo());
+        assertEquals("Falta de luz", resposta.chamadoTitulo());
+        assertEquals("EM ATENDIMENTO", resposta.chamadoStatus());
+    }
+
+    @Test
+    void adminLigaPeloCampoEOTextoPrecisaFalarDoMesmoChamado() {
+        var luz = chamado("3f2a1c9e-1111-4222-8333-444455556666", "Falta de luz");
+        var outro = chamado("aaaa0000-1111-4222-8333-444455556666", "Vazamento");
+        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(chamadoRepository.findByIdAndCondominioId(luz.getId(), condominio.getId())).thenReturn(Optional.of(luz));
+        when(chamadoRepository.findByCondominioId(condominio.getId())).thenReturn(List.of(luz, outro));
+        when(avisoRepository.save(any(Aviso.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals("Falta de luz", service.publicar(new RegistroAvisoDTO("T", "Sem menção no texto", null, null, null, luz.getId()), auth(admin)).chamadoTitulo());
+        assertEquals("Falta de luz", service.publicar(new RegistroAvisoDTO("T", "Sobre o @3f2a1c9e", null, null, null, luz.getId()), auth(admin)).chamadoTitulo());
+        assertThrows(IllegalArgumentException.class,
+                () -> service.publicar(new RegistroAvisoDTO("T", "Sobre o @AAAA0000", null, null, null, luz.getId()), auth(admin)));
+    }
+
+    @Test
+    void mencaoDeChamadoInexistenteEhRecusadaMasEmailNaoContaComoMencao() {
+        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(chamadoRepository.findByCondominioId(condominio.getId())).thenReturn(List.of());
+        when(avisoRepository.save(any(Aviso.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> service.publicar(new RegistroAvisoDTO("T", "Veja o @DEADBEEF", null, null, null, null), auth(admin)));
+        // E-mail com 8 caracteres hexadecimais depois do @ não é menção
+        assertNull(service.publicar(new RegistroAvisoDTO("T", "Escreva para sindico@deadbeef.com", null, null, null, null), auth(admin)).chamadoId());
+    }
+
+    @Test
+    void chamadoDeOutroCondominioNaoEhEncontrado() {
+        var deOutro = UUID.randomUUID();
+        when(usuarioRepository.findById(admin.getId())).thenReturn(Optional.of(admin));
+        when(chamadoRepository.findByIdAndCondominioId(deOutro, condominio.getId())).thenReturn(Optional.empty());
+
+        assertThrows(RecursoNaoEncontradoException.class,
+                () -> service.publicar(new RegistroAvisoDTO("T", "C", null, null, null, deOutro), auth(admin)));
+        verify(avisoRepository, never()).save(any());
+    }
+
+    @Test
+    void portariaNaoLigaChamadoEAMencaoDelaFicaSoComoTexto() {
+        var portaria = usuario("PORTARIA", null);
+        when(usuarioRepository.findById(portaria.getId())).thenReturn(Optional.of(portaria));
+        when(avisoRepository.save(any(Aviso.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertThrows(SecurityException.class,
+                () -> service.publicar(new RegistroAvisoDTO("T", "C", null, null, null, UUID.randomUUID()), auth(portaria)));
+        assertNull(service.publicar(new RegistroAvisoDTO("T", "Sobre o @3F2A1C9E", null, null, null, null), auth(portaria)).chamadoId());
+        verifyNoInteractions(chamadoRepository);
     }
 }
