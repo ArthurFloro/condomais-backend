@@ -1,6 +1,7 @@
 package br.com.condomais.condominio.service;
 
 import br.com.condomais.auth.model.Usuario;
+import br.com.condomais.condominio.dto.AdicaoTorresDTO;
 import br.com.condomais.condominio.dto.ConfiguracaoInicialDTO;
 import br.com.condomais.condominio.model.Apartamento;
 import br.com.condomais.condominio.model.AreaComum;
@@ -325,5 +326,54 @@ class ConfiguracaoInicialServiceTest {
                     () -> service.configurar(dados(List.of(torre("A", 1, 1, 2, "")), null), autenticado(perfil)));
         }
         verifyNoInteractions(torreRepository, apartamentoRepository, areaComumRepository);
+    }
+
+    // ---------------------------------------------------------------------
+    // Reexecução: torres novas num condomínio já configurado
+    // ---------------------------------------------------------------------
+
+    @Test
+    void acrescentaTorresNovasComAMesmaGeracaoSemMexerNoQueExiste() {
+        condominio.setConfiguracaoInicial("CONCLUIDA");
+        var nova = new ConfiguracaoInicialDTO.Torre("Torre C", 2, 2, 1, 1, 2, "", "COM_APARTAMENTOS");
+
+        var resposta = service.adicionarTorres(new AdicaoTorresDTO(List.of(nova)), admin);
+
+        assertEquals(1, resposta.torres());
+        assertEquals(6, resposta.unidades());
+        assertEquals(List.of("001", "002", "101", "102", "201", "202"), unidadesGravadas.stream().map(Apartamento::getNumero).toList());
+        verify(torreRepository).save(any());
+        // Só cria: nada de apagar, nada de mexer em áreas comuns ou no status da configuração
+        verify(torreRepository, never()).delete(any());
+        verify(apartamentoRepository, never()).delete(any());
+        verifyNoInteractions(areaComumRepository, categoriaChamadoService);
+        assertEquals("CONCLUIDA", condominio.getConfiguracaoInicial());
+    }
+
+    @Test
+    void nomeDeTorreJaUsadoEhConflitoENadaEhGravado() {
+        condominio.setConfiguracaoInicial("CONCLUIDA");
+        when(torreRepository.existsByCondominioIdAndNomeIgnoreCase(condominio.getId(), "Torre A")).thenReturn(true);
+
+        assertThrows(ConflitoException.class,
+                () -> service.adicionarTorres(new AdicaoTorresDTO(List.of(torre("Torre A", 2, 2, 2, ""))), admin));
+        verify(torreRepository, never()).save(any());
+        verify(apartamentoRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void soNoCondominioVerticalJaConfiguradoEPeloAdmin() {
+        var dados = new AdicaoTorresDTO(List.of(torre("Torre C", 1, 1, 2, "")));
+        // Configuração inicial ainda pendente: é o Wizard completo que vale
+        assertThrows(ConflitoException.class, () -> service.adicionarTorres(dados, admin));
+
+        condominio.setConfiguracaoInicial("CONCLUIDA");
+        condominio.setModelo("HORIZONTAL");
+        assertThrows(IllegalArgumentException.class, () -> service.adicionarTorres(dados, admin));
+
+        condominio.setModelo("VERTICAL");
+        assertThrows(SecurityException.class, () -> service.adicionarTorres(dados, autenticado("PORTARIA")));
+        assertThrows(IllegalArgumentException.class, () -> service.adicionarTorres(new AdicaoTorresDTO(List.of()), admin));
+        verify(apartamentoRepository, never()).saveAll(anyList());
     }
 }

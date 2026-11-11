@@ -33,6 +33,12 @@ public class CondominioController {
         return ResponseEntity.status(HttpStatus.CREATED).body(configuracaoInicialService.configurar(dados, auth()));
     }
 
+    @PostMapping("/torres/lote")
+    @Operation(summary = "Acrescentar torres pelo assistente (somente ADMIN)", description = "Reexecução do Setup Wizard num condomínio VERTICAL já configurado: recebe os parâmetros das torres novas (os mesmos da configuração inicial, inclusive térreo), gera as unidades e grava tudo numa transação. Nada existente muda. 201 ao criar; 400 dados inválidos, numeração repetida ou modelo sem torres; 409 nome de torre já usado ou configuração inicial pendente.")
+    public ResponseEntity<ConfiguracaoInicialResponseDTO> adicionarTorres(@RequestBody AdicaoTorresDTO dados) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(configuracaoInicialService.adicionarTorres(dados, auth()));
+    }
+
     @PostMapping("/torres")
     @Operation(summary = "Cadastrar torre (somente ADMIN)", description = "Cadastra uma torre no condomínio do usuário autenticado; o condominioId do corpo é ignorado (RF-CON-004).")
     public ResponseEntity<Torre> cadastrarTorre(@RequestBody TorreDTO dados) {
