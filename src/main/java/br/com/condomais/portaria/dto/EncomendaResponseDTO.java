@@ -18,11 +18,17 @@ public record EncomendaResponseDTO(
         String torreNome,
         String moradorNome,         // destinatário: morador da unidade no momento do recebimento
         String porteiroRecebimentoNome,
-        String porteiroRetiradaNome
+        String porteiroRetiradaNome,
+        boolean semDestinatario,    // chegou sem unidade identificada
+        String retiranteNome,       // quem retirou
+        String retiranteApartamentoNumero, // apartamento que o retirante informou (encomenda sem unidade)
+        String retiranteTorreNome
 ) {
     public static EncomendaResponseDTO from(Encomenda encomenda) {
         var apartamento = encomenda.getApartamento();
-        var torre = apartamento.getTorre();
+        var torre = apartamento != null ? apartamento.getTorre() : null;
+        var informado = encomenda.getRetiranteApartamento();
+        var torreInformada = informado != null ? informado.getTorre() : null;
         return new EncomendaResponseDTO(
                 encomenda.getId(),
                 encomenda.getCodigoIdentificacao(),
@@ -30,12 +36,16 @@ public record EncomendaResponseDTO(
                 encomenda.getStatus(),
                 encomenda.getDataHoraRecebimento(),
                 encomenda.getDataHoraRetirada(),
-                apartamento.getId(),
-                apartamento.getNumero(),
+                apartamento != null ? apartamento.getId() : null,
+                apartamento != null ? apartamento.getNumero() : null,
                 torre != null ? torre.getNome() : null,
                 encomenda.getMorador() != null ? encomenda.getMorador().getNome() : null,
                 encomenda.getPorteiroRecebimento() != null ? encomenda.getPorteiroRecebimento().getNome() : null,
-                encomenda.getPorteiroRetirada() != null ? encomenda.getPorteiroRetirada().getNome() : null
+                encomenda.getPorteiroRetirada() != null ? encomenda.getPorteiroRetirada().getNome() : null,
+                apartamento == null,
+                encomenda.getRetiranteNome(),
+                informado != null ? informado.getNumero() : null,
+                torreInformada != null ? torreInformada.getNome() : null
         );
     }
 }
