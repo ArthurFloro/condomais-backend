@@ -12,6 +12,7 @@ import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.interativo.service.ReservaService;
 import br.com.condomais.portaria.service.VisitaService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class UsuarioServiceTest {
     @Mock private CondominioRepository condominioRepository;
     @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
     @Mock private VisitaService visitaService;
+    @Mock private ReservaService reservaService;
     @InjectMocks private UsuarioService service;
 
     private Condominio condominio;
@@ -251,6 +253,8 @@ class UsuarioServiceTest {
         verify(ocupacaoUnidadeService).recalcular(antiga, nova);
         // Quem chega na unidade antiga não herda os visitantes liberados por ele
         verify(visitaService).revogarAutorizacoesDoMorador(morador, antiga);
+        // Mas ele continua morador: as reservas dele ficam
+        verifyNoInteractions(reservaService);
     }
 
     @Test
@@ -281,6 +285,8 @@ class UsuarioServiceTest {
 
         verify(ocupacaoUnidadeService).recalcular(apartamento);
         verify(visitaService).revogarAutorizacoesDoMorador(morador, apartamento);
+        // Desativado deixa de morar no condomínio: as reservas futuras dele são canceladas
+        verify(reservaService).cancelarFuturasDoMorador(morador);
     }
 
     // ---------------------------------------------------------------------
@@ -338,5 +344,20 @@ class UsuarioServiceTest {
         assertTrue(UsuarioService.moraNoCondominio(morador));
         assertFalse(UsuarioService.moraNoCondominio(porteiro));
         assertFalse(UsuarioService.moraNoCondominio(usuario("ADMIN")));
+    }
+
+    @Test
+    void moradorQueViraPortariaDeixaDeMorarETemAsReservasFuturasCanceladas() {
+        var apartamento = apartamento();
+        var morador = usuario("MORADOR");
+        morador.setCpf(CPF_VALIDO);
+        morador.setApartamento(apartamento);
+        when(usuarioRepository.findByIdAndCondominioId(morador.getId(), condominio.getId())).thenReturn(Optional.of(morador));
+        when(usuarioRepository.findByCpf(CPF_VALIDO)).thenReturn(Optional.of(morador));
+        when(usuarioRepository.save(any())).thenAnswer(invocacao -> invocacao.getArgument(0));
+
+        service.atualizar(morador.getId(), new UsuarioDTO("Fulano", CPF_VALIDO, null, null, "PORTARIA", null, null), authAdmin);
+
+        verify(reservaService).cancelarFuturasDoMorador(morador);
     }
 }

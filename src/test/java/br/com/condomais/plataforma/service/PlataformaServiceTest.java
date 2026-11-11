@@ -9,6 +9,7 @@ import br.com.condomais.condominio.service.OcupacaoUnidadeService;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
+import br.com.condomais.interativo.service.ReservaService;
 import br.com.condomais.portaria.service.VisitaService;
 import br.com.condomais.plataforma.dto.CadastroCondominioDTO;
 import br.com.condomais.plataforma.dto.DadosAdminDTO;
@@ -40,6 +41,7 @@ class PlataformaServiceTest {
     @Mock private UsuarioRepository usuarioRepository;
     @Mock private OcupacaoUnidadeService ocupacaoUnidadeService;
     @Mock private VisitaService visitaService;
+    @Mock private ReservaService reservaService;
     @InjectMocks private PlataformaService service;
 
     private UsuarioAutenticado master;
@@ -182,6 +184,8 @@ class PlataformaServiceTest {
         assertEquals("INATIVO", anterior.getStatus());
         verify(ocupacaoUnidadeService).recalcular(unidadeDoAnterior);
         verify(visitaService).revogarAutorizacoesDoMorador(anterior, unidadeDoAnterior);
+        verify(reservaService).cancelarFuturasDoMorador(anterior);
+        verify(reservaService, never()).cancelarFuturasDoMorador(morador);
         // Os dois aparecem como administradores, mas só o promovido continua ativo
         var ativos = resposta.administradores().stream().filter(a -> "ATIVO".equals(a.status())).map(a -> a.id()).toList();
         assertEquals(List.of(morador.getId()), ativos);

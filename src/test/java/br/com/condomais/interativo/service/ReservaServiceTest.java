@@ -375,4 +375,24 @@ class ReservaServiceTest {
         assertEquals("CONFIRMADA", resposta.status());
         assertEquals("101", resposta.apartamentoNumero());
     }
+
+    // ---------------------------------------------------------------------
+    // Quem deixa de morar no condomínio
+    // ---------------------------------------------------------------------
+
+    @Test
+    void cancelaSoAsReservasQueAindaNaoComecaramDeQuemDeixaDeMorar() {
+        var futura = reserva(proprietario101, "CONFIRMADA", semanaQueVem);
+        var aguardando = reserva(proprietario101, "AGUARDANDO APROVACAO", semanaQueVem.plusDays(1));
+        var passada = reserva(proprietario101, "CONFIRMADA", semanaQueVem.minusDays(30));
+        when(reservaRepository.listarAtivasDoMorador(proprietario101.getId())).thenReturn(List.of(futura, aguardando, passada));
+
+        service.cancelarFuturasDoMorador(proprietario101);
+
+        assertEquals("CANCELADA", futura.getStatus());
+        assertEquals("CANCELADA", aguardando.getStatus());
+        // A que já aconteceu fica no histórico como estava
+        assertEquals("CONFIRMADA", passada.getStatus());
+        verify(reservaRepository).saveAll(List.of(futura, aguardando));
+    }
 }

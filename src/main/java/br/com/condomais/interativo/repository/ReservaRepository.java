@@ -30,6 +30,10 @@ public interface ReservaRepository extends JpaRepository<Reserva, UUID> {
 
     Optional<Reserva> findByIdAndCondominioId(UUID id, UUID condominioId);
 
+    // Reservas que ainda ocupam horário, feitas por um morador (para cancelar as futuras quando ele deixa de morar)
+    @Query("SELECT r FROM Reserva r WHERE r.morador.id = :moradorId AND r.status NOT IN ('CANCELADA', 'RECUSADA')")
+    List<Reserva> listarAtivasDoMorador(@Param("moradorId") UUID moradorId);
+
     // Administração e portaria: todas do condomínio, da data mais recente para a mais antiga
     @Query("SELECT r FROM Reserva r WHERE r.condominio.id = :condominioId ORDER BY r.dataReserva DESC, r.horarioInicio DESC")
     List<Reserva> listarDoCondominio(@Param("condominioId") UUID condominioId);
