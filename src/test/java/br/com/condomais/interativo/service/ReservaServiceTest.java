@@ -457,4 +457,55 @@ class ReservaServiceTest {
         assertEquals("CONFIRMADA", resposta.status());
         assertNull(resposta.valorTaxa());
     }
+
+    // ---------------------------------------------------------------------
+    // Horário de funcionamento da área
+    // ---------------------------------------------------------------------
+
+    private static java.time.LocalDateTime em(LocalDate dia, int hora, int minuto) {
+        return java.time.LocalDateTime.of(dia, LocalTime.of(hora, minuto));
+    }
+
+    @Test
+    void periodoPrecisaCaberNoFuncionamentoDoDia() {
+        salao.setHorarioAbertura(LocalTime.of(6, 0));
+        salao.setHorarioFechamento(LocalTime.of(22, 0));
+        var dia = semanaQueVem;
+
+        assertTrue(ReservaService.dentroDoFuncionamento(salao, em(dia, 10, 0), em(dia, 12, 0)));
+        assertTrue(ReservaService.dentroDoFuncionamento(salao, em(dia, 6, 0), em(dia, 22, 0)));
+        assertFalse(ReservaService.dentroDoFuncionamento(salao, em(dia, 21, 0), em(dia, 23, 0)));
+        assertFalse(ReservaService.dentroDoFuncionamento(salao, em(dia, 5, 30), em(dia, 7, 0)));
+    }
+
+    @Test
+    void funcionamentoQuePassaDaMeiaNoiteValeNaMadrugadaSeguinte() {
+        // Salão das 08h às 02h do dia seguinte
+        salao.setHorarioAbertura(LocalTime.of(8, 0));
+        salao.setHorarioFechamento(LocalTime.of(2, 0));
+        var dia = semanaQueVem;
+
+        assertTrue(ReservaService.dentroDoFuncionamento(salao, em(dia, 22, 0), em(dia.plusDays(1), 1, 0)));
+        assertTrue(ReservaService.dentroDoFuncionamento(salao, em(dia, 0, 30), em(dia, 1, 30))); // madrugada do funcionamento da véspera
+        assertFalse(ReservaService.dentroDoFuncionamento(salao, em(dia, 1, 0), em(dia, 3, 0)));
+        assertFalse(ReservaService.dentroDoFuncionamento(salao, em(dia, 7, 0), em(dia, 9, 0)));
+        assertEquals("08:00 às 02:00 do dia seguinte", ReservaService.funcionamento(salao));
+    }
+
+    @Test
+    void reservaForaDoFuncionamentoEhRecusadaComOHorarioDaArea() {
+        salao.setHorarioAbertura(LocalTime.of(15, 0));
+        salao.setHorarioFechamento(LocalTime.of(22, 0));
+        when(areaComumRepository.findParaReserva(salao.getId(), condominio.getId())).thenReturn(Optional.of(salao));
+
+        // pedido() é das 14h às 18h: começa antes de abrir
+        var erro = assertThrows(IllegalArgumentException.class, () -> service.solicitar(pedido(), auth(proprietario101)));
+        assertTrue(erro.getMessage().contains("15:00 às 22:00"));
+        verify(reservaRepository, never()).save(any());
+    }
+
+    @Test
+    void areaSemHorarioContinuaSemRestricao() {
+        assertTrue(ReservaService.dentroDoFuncionamento(salao, em(semanaQueVem, 0, 0), em(semanaQueVem, 23, 59)));
+    }
 }

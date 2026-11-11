@@ -238,6 +238,17 @@ public class CondominioService {
         var taxa = reservavel ? validarTaxa(dados.taxa()) : null;
         area.setTaxa(taxa);
         area.setInstrucoesPagamento(taxa != null ? textoOuNulo(dados.instrucoesPagamento()) : null);
+        // Funcionamento: os dois horários ou nenhum (sem restrição); iguais não dizem nada
+        var abertura = dados.horarioAbertura();
+        var fechamento = dados.horarioFechamento();
+        if ((abertura == null) != (fechamento == null)) {
+            throw new IllegalArgumentException("Informe o horário de abertura e o de fechamento, ou deixe os dois vazios.");
+        }
+        if (abertura != null && abertura.equals(fechamento)) {
+            throw new IllegalArgumentException("Abertura e fechamento não podem ser iguais. Para funcionar o dia todo, deixe os dois vazios.");
+        }
+        area.setHorarioAbertura(abertura);
+        area.setHorarioFechamento(fechamento);
     }
 
     // Taxa em reais, com até 2 casas; nula ou zero = gratuita

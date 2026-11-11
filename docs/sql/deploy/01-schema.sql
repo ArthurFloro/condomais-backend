@@ -26,6 +26,8 @@ BEGIN;
         regras TEXT,
         taxa numeric(10,2),
         instrucoes_pagamento TEXT,
+        horario_abertura time(0),
+        horario_fechamento time(0),
         primary key (id)
     );
 

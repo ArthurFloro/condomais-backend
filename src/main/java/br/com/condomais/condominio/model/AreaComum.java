@@ -3,6 +3,7 @@ package br.com.condomais.condominio.model;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.UUID;
 
 @Entity
@@ -44,6 +45,14 @@ public class AreaComum {
     // Instruções informativas para pagar (ex.: chave Pix do condomínio); o sistema só mostra, não integra
     @Column(name = "instrucoes_pagamento", columnDefinition = "TEXT")
     private String instrucoesPagamento;
+
+    // Horário de funcionamento (CONDO-08.2/8.3); os dois nulos = sem restrição. O fechamento antes da abertura
+    // passa da meia-noite (salão das 08h às 02h do dia seguinte).
+    @Column(name = "horario_abertura")
+    private LocalTime horarioAbertura;
+
+    @Column(name = "horario_fechamento")
+    private LocalTime horarioFechamento;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "condominio_id", nullable = false)

@@ -3,6 +3,7 @@ package br.com.condomais.interativo.service;
 import br.com.condomais.auth.model.Usuario;
 import br.com.condomais.auth.repository.UsuarioRepository;
 import br.com.condomais.auth.service.UsuarioService;
+import br.com.condomais.condominio.model.AreaComum;
 import br.com.condomais.condominio.repository.AreaComumRepository;
 import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
@@ -34,6 +35,8 @@ import java.util.UUID;
  * - Área com taxa (CONDO-08.5): depois da aprovação (ou de cara, se não precisa), a reserva fica AGUARDANDO
  *   PAGAMENTO, segurando o horário, até o admin confirmar o pagamento manual (vira CONFIRMADA). Sem cancelamento
  *   automático por falta de pagamento: o admin ou quem pediu cancela, liberando o horário.
+ * - Área com horário de funcionamento: o período inteiro precisa caber nele (o funcionamento pode passar da
+ *   meia-noite, e a madrugada pertence ao funcionamento que começou na véspera).
  * - Quem pediu (ou o admin) cancela enquanto a reserva não passou.
  * - Quem deixa de morar no condomínio (desativado, ou sem unidade) tem as reservas futuras canceladas na hora,
  *   liberando o horário (CONDO-11.5). Mudar de unidade dentro do condomínio não cancela.
@@ -142,6 +145,9 @@ public class ReservaService {
         }
         if (!area.getReservavel()) {
             throw new IllegalArgumentException("Esta área não está configurada como reservável (RN-RES-001).");
+        }
+        if (!dentroDoFuncionamento(area, inicio, fim)) {
+            throw new IllegalArgumentException("Fora do horário de funcionamento da área (" + funcionamento(area) + ").");
         }
         if (reservaRepository.existeConflitoDeHorario(area.getId(), dados.dataReserva(), dados.horarioInicio(), dataFim, dados.horarioFim())) {
             throw new ConflitoException("Horário indisponível. Já existe uma reserva conflitante (RN-RES-002).");
@@ -253,6 +259,26 @@ public class ReservaService {
     }
 
     // ---------------------------------------------------------------------
+
+    // O período cabe no funcionamento que começa no dia da reserva ou, se ele passa da meia-noite, no da véspera
+    static boolean dentroDoFuncionamento(AreaComum area, LocalDateTime inicio, LocalDateTime fim) {
+        var abertura = area.getHorarioAbertura();
+        var fechamento = area.getHorarioFechamento();
+        if (abertura == null || fechamento == null) return true;
+        var passaDaMeiaNoite = !fechamento.isAfter(abertura);
+        for (var dia : List.of(inicio.toLocalDate().minusDays(1), inicio.toLocalDate())) {
+            var abre = LocalDateTime.of(dia, abertura);
+            var fecha = LocalDateTime.of(passaDaMeiaNoite ? dia.plusDays(1) : dia, fechamento);
+            if (!inicio.isBefore(abre) && !fim.isAfter(fecha)) return true;
+        }
+        return false;
+    }
+
+    // "08:00 às 22:00" ou "08:00 às 02:00 do dia seguinte"
+    static String funcionamento(AreaComum area) {
+        var texto = area.getHorarioAbertura() + " às " + area.getHorarioFechamento();
+        return area.getHorarioFechamento().isAfter(area.getHorarioAbertura()) ? texto : texto + " do dia seguinte";
+    }
 
     // Reserva aprovada (ou que não precisava de aprovação): confirmada se gratuita, aguardando pagamento se paga
     private static String depoisDaAprovacao(Reserva reserva) {
