@@ -68,6 +68,12 @@ public class ReservaController {
         return ResponseEntity.ok(reservaService.cancelar(id, getUsuarioLogado()));
     }
 
+    @PutMapping("/{id}/confirmar-pagamento")
+    @Operation(summary = "Confirmar pagamento (administração)", description = "Pagamento manual de área com taxa (CONDO-08.5): AGUARDANDO PAGAMENTO vira CONFIRMADA, registrando quem confirmou e quando. Até o fim da reserva.")
+    public ResponseEntity<ReservaResponseDTO> confirmarPagamento(@PathVariable UUID id) {
+        return ResponseEntity.ok(reservaService.confirmarPagamento(id, getUsuarioLogado()));
+    }
+
     @PutMapping("/{id}/aprovar")
     @Operation(summary = "Aprovar reserva", description = "Administração ou o proprietário da unidade de quem pediu. Só reservas AGUARDANDO APROVACAO.")
     public ResponseEntity<ReservaResponseDTO> aprovar(@PathVariable UUID id) {

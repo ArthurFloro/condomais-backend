@@ -395,4 +395,66 @@ class ReservaServiceTest {
         assertEquals("CONFIRMADA", passada.getStatus());
         verify(reservaRepository).saveAll(List.of(futura, aguardando));
     }
+
+    // ---------------------------------------------------------------------
+    // Área com taxa: pagamento manual confirmado pelo admin
+    // ---------------------------------------------------------------------
+
+    @Test
+    void areaPagaSemAprovacaoJaAguardaPagamentoEGuardaATaxa() {
+        salao.setExigeAprovacao(false);
+        salao.setTaxa(new java.math.BigDecimal("150.00"));
+        salao.setInstrucoesPagamento("Pix do condomínio");
+        areaDisponivel();
+
+        var resposta = service.solicitar(pedido(), auth(inquilino101));
+
+        assertEquals("AGUARDANDO PAGAMENTO", resposta.status());
+        assertEquals(new java.math.BigDecimal("150.00"), resposta.valorTaxa());
+        assertEquals("Pix do condomínio", resposta.instrucoesPagamento());
+    }
+
+    @Test
+    void areaPagaComAprovacaoPassaPelaAprovacaoDepoisPeloPagamento() {
+        salao.setTaxa(new java.math.BigDecimal("80.00"));
+        areaDisponivel();
+        assertEquals("AGUARDANDO APROVACAO", service.solicitar(pedido(), auth(inquilino101)).status());
+
+        var pendente = reserva(inquilino101, "AGUARDANDO APROVACAO", semanaQueVem);
+        pendente.setValorTaxa(new java.math.BigDecimal("80.00"));
+        assertEquals("AGUARDANDO PAGAMENTO", service.aprovar(pendente.getId(), auth(proprietario101)).status());
+
+        var resposta = service.confirmarPagamento(pendente.getId(), auth(admin));
+        assertEquals("CONFIRMADA", resposta.status());
+        assertNotNull(resposta.pagamentoConfirmadoEm());
+        assertEquals(admin.getNome(), resposta.pagamentoConfirmadoPorNome());
+    }
+
+    @Test
+    void soAdminConfirmaPagamentoESoDeQuemAguarda() {
+        var aguardando = reserva(inquilino101, "AGUARDANDO PAGAMENTO", semanaQueVem);
+        var confirmada = reserva(inquilino101, "CONFIRMADA", semanaQueVem);
+
+        assertThrows(SecurityException.class, () -> service.confirmarPagamento(aguardando.getId(), auth(proprietario101)));
+        assertThrows(ConflitoException.class, () -> service.confirmarPagamento(confirmada.getId(), auth(admin)));
+    }
+
+    @Test
+    void reservaAguardandoPagamentoPodeSerCanceladaPorQuemPediuOuPeloAdmin() {
+        var aguardando = reserva(inquilino101, "AGUARDANDO PAGAMENTO", semanaQueVem);
+        when(reservaRepository.save(any(Reserva.class))).thenAnswer(i -> i.getArgument(0));
+
+        assertEquals("CANCELADA", service.cancelar(aguardando.getId(), auth(admin)).status());
+    }
+
+    @Test
+    void areaGratuitaContinuaConfirmandoDireto() {
+        salao.setExigeAprovacao(false);
+        areaDisponivel();
+
+        var resposta = service.solicitar(pedido(), auth(inquilino101));
+
+        assertEquals("CONFIRMADA", resposta.status());
+        assertNull(resposta.valorTaxa());
+    }
 }

@@ -5,7 +5,9 @@ import br.com.condomais.condominio.model.AreaComum;
 import br.com.condomais.condominio.model.Condominio;
 import jakarta.persistence.*;
 import lombok.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.UUID;
 
@@ -34,7 +36,7 @@ public class Reserva {
     private LocalTime horarioFim;
 
     @Column(nullable = false, length = 50)
-    private String status; // CONFIRMADA, AGUARDANDO APROVACAO, CANCELADA
+    private String status; // CONFIRMADA, AGUARDANDO APROVACAO, AGUARDANDO PAGAMENTO, CANCELADA, RECUSADA
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "area_id", nullable = false)
@@ -51,4 +53,16 @@ public class Reserva {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "condominio_id", nullable = false)
     private Condominio condominio;
+
+    // Taxa da área no momento do pedido (nula = gratuita); a reserva paga só confirma depois do pagamento
+    @Column(name = "valor_taxa", precision = 10, scale = 2)
+    private BigDecimal valorTaxa;
+
+    // Quem confirmou o pagamento manual (sempre o admin) e quando
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pagamento_confirmado_por_id")
+    private Usuario pagamentoConfirmadoPor;
+
+    @Column(name = "pagamento_confirmado_em")
+    private LocalDateTime pagamentoConfirmadoEm;
 }

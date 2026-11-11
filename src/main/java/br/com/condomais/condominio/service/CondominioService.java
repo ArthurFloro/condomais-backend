@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -233,6 +234,19 @@ public class CondominioService {
         area.setReservavel(reservavel);
         area.setExigeAprovacao(reservavel && Boolean.TRUE.equals(dados.exigeAprovacao()));
         area.setCapacidade(validarCapacidade(dados.capacidade()));
+        // Taxa só vale para área reservável; zero é o mesmo que gratuita
+        var taxa = reservavel ? validarTaxa(dados.taxa()) : null;
+        area.setTaxa(taxa);
+        area.setInstrucoesPagamento(taxa != null ? textoOuNulo(dados.instrucoesPagamento()) : null);
+    }
+
+    // Taxa em reais, com até 2 casas; nula ou zero = gratuita
+    static BigDecimal validarTaxa(BigDecimal taxa) {
+        if (taxa == null || taxa.signum() == 0) return null;
+        if (taxa.signum() < 0 || taxa.compareTo(new BigDecimal("100000")) > 0 || taxa.stripTrailingZeros().scale() > 2) {
+            throw new IllegalArgumentException("A taxa deve ser um valor em reais entre 0 e 100.000, com até 2 casas decimais.");
+        }
+        return taxa.setScale(2);
     }
 
     private static String nomeDaArea(AreaComumDTO dados) {

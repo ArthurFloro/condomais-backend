@@ -2,6 +2,7 @@ package br.com.condomais.condominio.dto;
 
 import br.com.condomais.condominio.model.AreaComum;
 
+import java.math.BigDecimal;
 import java.util.UUID;
 
 public record AreaComumResponseDTO(
@@ -13,7 +14,9 @@ public record AreaComumResponseDTO(
         Boolean exigeAprovacao,
         Boolean ativo,
         UUID condominioId,
-        Integer capacidade
+        Integer capacidade,
+        BigDecimal taxa,            // nula = gratuita
+        String instrucoesPagamento
 ) {
     public static AreaComumResponseDTO from(AreaComum area) {
         return new AreaComumResponseDTO(
@@ -25,7 +28,9 @@ public record AreaComumResponseDTO(
                 area.getExigeAprovacao(),
                 area.getAtivo(),
                 area.getCondominio().getId(),
-                area.getCapacidade()
+                area.getCapacidade(),
+                area.getTaxa(),
+                area.getInstrucoesPagamento()
         );
     }
 }
