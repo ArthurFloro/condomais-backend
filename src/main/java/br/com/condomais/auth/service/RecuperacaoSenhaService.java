@@ -140,12 +140,47 @@ public class RecuperacaoSenhaService {
                 + link + "\n\nSe não foi você, ignore este e-mail: sua senha continua a mesma.";
     }
 
-    private static String html(String nome, String link) {
-        var href = HtmlUtils.htmlEscape(link);
-        return "<p>" + HtmlUtils.htmlEscape(saudacao(nome)) + "</p>"
-                + "<p>Recebemos um pedido para criar uma nova senha no Condo+. O link vale por 30 minutos e pode ser usado uma vez.</p>"
-                + "<p><a href=\"" + href + "\">Criar nova senha</a></p>"
-                + "<p>Se o link não abrir, copie este endereço no navegador:<br>" + href + "</p>"
-                + "<p>Se não foi você, ignore este e-mail: sua senha continua a mesma.</p>";
+    // Cores da marca, as mesmas variáveis do front (--navy, --green, --muted)
+    private static final String AZUL = "#0b2a53";
+    private static final String VERDE = "#08783b";
+    private static final String CINZA = "#59656f";
+
+    /**
+     * Layout em tabelas com estilos embutidos: é o que Gmail e Outlook exibem direito (sem CSS externo nem
+     * &lt;style&gt;). O logo vem do próprio front publicado; se a imagem for bloqueada, aparece o texto "Condo+".
+     */
+    String html(String nome, String link) {
+        var href = HtmlUtils.htmlEscape(link, "UTF-8");
+        var logo = HtmlUtils.htmlEscape(frontUrl + "/logo-principal-branca.png", "UTF-8");
+        var fonte = "font-family:Arial,Helvetica,sans-serif;";
+        return "<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\">"
+                + "<meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Criar nova senha</title></head>"
+                + "<body style=\"margin:0;padding:0;background:#f2f4f7;\">"
+                // Prévia que o Gmail mostra ao lado do assunto
+                + "<div style=\"display:none;max-height:0;overflow:hidden;\">Seu link para criar uma nova senha no Condo+ vale por 30 minutos.</div>"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"background:#f2f4f7;\"><tr><td align=\"center\" style=\"padding:24px 12px;\">"
+                + "<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;\">"
+                + "<tr><td align=\"center\" style=\"background:" + AZUL + ";padding:24px;\">"
+                + "<img src=\"" + logo + "\" width=\"150\" height=\"67\" alt=\"Condo+\" style=\"display:block;border:0;color:#ffffff;" + fonte + "font-size:24px;font-weight:bold;\">"
+                + "</td></tr>"
+                + "<tr><td style=\"padding:32px 32px 8px;" + fonte + "color:" + AZUL + ";\">"
+                + "<h1 style=\"margin:0 0 16px;font-size:22px;\">Criar nova senha</h1>"
+                + "<p style=\"margin:0 0 12px;font-size:16px;line-height:24px;\">" + HtmlUtils.htmlEscape(saudacao(nome), "UTF-8") + "</p>"
+                + "<p style=\"margin:0 0 24px;font-size:16px;line-height:24px;\">Recebemos um pedido para criar uma nova senha no Condo+. "
+                + "Use o botão abaixo em até <strong>30 minutos</strong>. O link funciona uma única vez.</p>"
+                + "</td></tr>"
+                + "<tr><td align=\"center\" style=\"padding:0 32px 24px;\">"
+                + "<a href=\"" + href + "\" style=\"display:inline-block;background:" + VERDE + ";color:#ffffff;" + fonte
+                + "font-size:16px;font-weight:bold;text-decoration:none;padding:14px 32px;border-radius:8px;\">Criar nova senha</a>"
+                + "</td></tr>"
+                + "<tr><td style=\"padding:0 32px 32px;" + fonte + "color:" + CINZA + ";font-size:13px;line-height:20px;\">"
+                + "Se o botão não abrir, copie este endereço no navegador:<br>"
+                + "<a href=\"" + href + "\" style=\"color:" + VERDE + ";word-break:break-all;\">" + href + "</a>"
+                + "</td></tr>"
+                + "<tr><td style=\"background:#f7f8fa;border-top:1px solid #e4e7eb;padding:20px 32px;" + fonte + "color:" + CINZA + ";font-size:13px;line-height:20px;\">"
+                + "Se não foi você que pediu, ignore este e-mail: sua senha continua a mesma.<br>"
+                + "Este é um e-mail automático do Condo+, não é preciso responder."
+                + "</td></tr>"
+                + "</table></td></tr></table></body></html>";
     }
 }

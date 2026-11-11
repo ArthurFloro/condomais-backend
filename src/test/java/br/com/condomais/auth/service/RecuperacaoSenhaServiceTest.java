@@ -144,6 +144,24 @@ class RecuperacaoSenhaServiceTest {
         verifyNoInteractions(usuarioRepository);
     }
 
+    @Test
+    void emailTemACaraDaMarcaEEscapaONomeEOLink() throws Exception {
+        var html = service.html("<b>Ana</b> Lima", "https://condo-mais.vercel.app/recuperar-senha/nova-senha?token=abc&x=1");
+
+        assertTrue(html.contains("#0b2a53"), "azul da marca");
+        assertTrue(html.contains("#08783b"), "verde da marca no botão");
+        assertTrue(html.contains("src=\"https://condo-mais.vercel.app/logo-principal-branca.png\""), "logo do front publicado");
+        assertTrue(html.contains("alt=\"Condo+\""), "texto quando a imagem é bloqueada");
+        assertTrue(html.contains("Olá, &lt;b&gt;Ana&lt;/b&gt;,"), "nome escapado");
+        assertFalse(html.contains("<b>Ana</b>"));
+        assertTrue(html.contains("href=\"https://condo-mais.vercel.app/recuperar-senha/nova-senha?token=abc&amp;x=1\""), "link escapado");
+        assertTrue(html.contains("30 minutos"));
+        // Prévia para olhar no navegador: mvnw test -Dprevia.email=caminho.html
+        var previa = System.getProperty("previa.email");
+        if (previa != null) java.nio.file.Files.writeString(java.nio.file.Path.of(previa),
+                service.html("Ana Lima", "https://condo-mais.vercel.app/recuperar-senha/nova-senha?token=EXEMPLO"));
+    }
+
     // ---------------------------------------------------------------------
     // Redefinição
     // ---------------------------------------------------------------------
