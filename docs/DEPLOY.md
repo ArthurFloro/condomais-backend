@@ -41,6 +41,10 @@ Ordem: **Neon → Render → Vercel → voltar no Render para liberar o CORS**.
    | `JWT_SECRET` | texto longo e aleatório (**gere um novo**; veja abaixo) |
    | `CORS_ALLOWED_ORIGINS` | por enquanto `https://example.com`; troque pela URL da Vercel no passo 4 |
    | `ASSISTENTE_API_URL` | *(opcional)* endereço do serviço `condomais-assistente` (ex.: `https://condomais-assistente.onrender.com`) que liga o assistente virtual do morador. Sem ela, `POST /assistente/mensagens` responde 503 e o resto funciona normalmente. O `JWT_SECRET` do serviço Python precisa ser **o mesmo** deste |
+   | `BREVO_API_KEY` | *(opcional)* chave de API do [Brevo](https://www.brevo.com) (menu *SMTP & API → API Keys*) que liga a recuperação de senha por e-mail. Sem ela, "Esqueci minha senha" responde que a recuperação não está disponível e o resto funciona normalmente |
+   | `EMAIL_REMETENTE` | *(opcional, junto com a anterior)* e-mail remetente **validado no Brevo** (menu *Senders*). Pode ser um Gmail da equipe; sem domínio próprio alguns e-mails podem cair no spam |
+   | `EMAIL_REMETENTE_NOME` | *(opcional)* nome do remetente; padrão `Condo+` |
+   | `FRONT_URL` | *(opcional)* endereço do front usado no link do e-mail (ex.: `https://condo-mais.vercel.app`); vazio = primeira URL de `CORS_ALLOWED_ORIGINS` |
 
    O `Dockerfile` já define `SPRING_PROFILES_ACTIVE=prod`, e o Render informa a `PORT` sozinho.
 
@@ -104,6 +108,7 @@ O assistente do morador roda em **outro serviço**, o `condomais-assistente` (re
 | O deploy no Render falha com `Could not resolve placeholder` | falta variável de ambiente |
 | O chat do assistente diz "indisponível" | `ASSISTENTE_API_URL` vazia/errada, serviço do assistente fora do ar ou sem `GEMINI_API_KEY`, ou `JWT_SECRET` diferente entre os dois serviços (veja o log de cada um) |
 | `Schema-validation: missing table` | o `01-schema.sql` não foi rodado no Neon |
+| O e-mail de recuperação de senha não chega | `BREVO_API_KEY`/`EMAIL_REMETENTE` vazias ou remetente não validado no Brevo (o log do Render mostra "Falha ao enviar e-mail pelo Brevo" com o motivo), usuário sem e-mail no cadastro, ou caiu no spam. Por segurança a tela responde igual em todos os casos |
 | O front mostra "Não foi possível conectar ao servidor" | a API está dormindo (espere e tente de novo), `VITE_API_URL` está errada ou falta o Redeploy do front |
 | Erro de CORS no console do navegador | `CORS_ALLOWED_ORIGINS` diferente da URL do front (com barra no final, http/https, URL de preview) |
 | "Primeiro acesso indisponível" para o admin | CPF digitado diferente do gravado no `02-dados-iniciais.sql` |

@@ -113,6 +113,16 @@ BEGIN;
         primary key (id)
     );
 
+    create table recuperacoes_senha (
+        criado_em timestamp(6) not null,
+        expira_em timestamp(6) not null,
+        usado_em timestamp(6),
+        id uuid not null,
+        usuario_id uuid not null,
+        token_hash varchar(64) not null unique,
+        primary key (id)
+    );
+
     create table reservas (
         data_fim date not null,
         data_reserva date not null,
@@ -376,6 +386,14 @@ BEGIN;
        add constraint fk_visitantes_condominio 
        foreign key (condominio_id) 
        references condominios;
+
+    alter table if exists recuperacoes_senha 
+       add constraint fk_recuperacoes_senha_usuario 
+       foreign key (usuario_id) 
+       references usuarios 
+       on delete cascade;
+
+    create index recuperacoes_senha_usuario on recuperacoes_senha (usuario_id, criado_em);
 
     -- Unicidade que o Hibernate não gera: nome de torre no condomínio e número de unidade na torre
     -- (ou entre as unidades sem torre do condomínio), e CPF de visitante no condomínio
