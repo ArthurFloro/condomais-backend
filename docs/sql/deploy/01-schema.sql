@@ -85,14 +85,16 @@ BEGIN;
     create table encomendas (
         data_hora_recebimento timestamp(6) not null,
         data_hora_retirada timestamp(6),
-        apartamento_id uuid not null,
+        apartamento_id uuid,
         condominio_id uuid not null,
         id uuid not null,
         morador_id uuid,
         porteiro_recebimento_id uuid not null,
         porteiro_retirada_id uuid,
+        retirante_apartamento_id uuid,
         status varchar(50) not null,
         codigo_identificacao varchar(255) not null,
+        retirante_nome varchar(255),
         observacao TEXT,
         primary key (id)
     );
@@ -242,6 +244,11 @@ BEGIN;
        add constraint FKnyqu3b6ka39lw69my5intk2lv 
        foreign key (solicitante_id) 
        references usuarios;
+
+    alter table if exists encomendas 
+       add constraint fk_encomendas_retirante_apartamento 
+       foreign key (retirante_apartamento_id) 
+       references apartamentos;
 
     alter table if exists encomendas 
        add constraint FKqcxr5mm6t8j4c6kcfg32u7i9j 

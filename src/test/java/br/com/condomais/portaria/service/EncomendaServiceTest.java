@@ -10,6 +10,7 @@ import br.com.condomais.core.exception.ConflitoException;
 import br.com.condomais.core.exception.RecursoNaoEncontradoException;
 import br.com.condomais.core.security.UsuarioAutenticado;
 import br.com.condomais.portaria.dto.RegistroEncomendaDTO;
+import br.com.condomais.portaria.dto.RetiradaEncomendaDTO;
 import br.com.condomais.portaria.model.Encomenda;
 import br.com.condomais.portaria.repository.EncomendaRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -85,6 +86,10 @@ class EncomendaServiceTest {
         return encomenda;
     }
 
+    private static RetiradaEncomendaDTO retirada() {
+        return new RetiradaEncomendaDTO("Carlos Souza", null, null);
+    }
+
     private static UsuarioAutenticado auth(Usuario usuario) {
         return new UsuarioAutenticado(usuario);
     }
@@ -98,7 +103,7 @@ class EncomendaServiceTest {
         when(encomendaRepository.findByCondominioIdOrderByDataHoraRecebimentoDesc(condominio.getId()))
                 .thenReturn(List.of(encomenda(unidade101, "AGUARDANDO RETIRADA"), encomenda(unidade102, "RETIRADA")));
 
-        var lista = service.listar(null, null, auth(porteiro));
+        var lista = service.listar(null, null, null, false, auth(porteiro));
 
         assertEquals(2, lista.size());
         assertEquals("101", lista.get(0).apartamentoNumero());
@@ -111,14 +116,14 @@ class EncomendaServiceTest {
         when(encomendaRepository.findByCondominioIdAndStatusOrderByDataHoraRecebimentoDesc(condominio.getId(), "AGUARDANDO RETIRADA"))
                 .thenReturn(List.of());
 
-        service.listar("aguardando_retirada", null, auth(porteiro));
+        service.listar("aguardando_retirada", null, null, false, auth(porteiro));
 
         verify(encomendaRepository).findByCondominioIdAndStatusOrderByDataHoraRecebimentoDesc(condominio.getId(), "AGUARDANDO RETIRADA");
     }
 
     @Test
     void statusInvalidoEhRecusado() {
-        assertThrows(IllegalArgumentException.class, () -> service.listar("PERDIDA", null, auth(porteiro)));
+        assertThrows(IllegalArgumentException.class, () -> service.listar("PERDIDA", null, null, false, auth(porteiro)));
     }
 
     @Test
@@ -127,7 +132,7 @@ class EncomendaServiceTest {
         when(encomendaRepository.findByCondominioIdAndApartamentoIdOrderByDataHoraRecebimentoDesc(condominio.getId(), unidade101.getId()))
                 .thenReturn(List.of(encomenda(unidade101, "AGUARDANDO RETIRADA")));
 
-        var lista = service.listar(null, unidade102.getId(), auth(morador));
+        var lista = service.listar(null, unidade102.getId(), null, false, auth(morador));
 
         assertEquals(1, lista.size());
         assertEquals("101", lista.get(0).apartamentoNumero());
@@ -139,7 +144,7 @@ class EncomendaServiceTest {
         var semUnidade = usuario("MORADOR", "Sem unidade", null);
         when(usuarioRepository.findById(semUnidade.getId())).thenReturn(Optional.of(semUnidade));
 
-        assertEquals(List.of(), service.listar(null, null, auth(semUnidade)));
+        assertEquals(List.of(), service.listar(null, null, null, false, auth(semUnidade)));
         verifyNoInteractions(encomendaRepository);
     }
 
@@ -158,7 +163,7 @@ class EncomendaServiceTest {
         when(encomendaRepository.findByIdAndCondominioId(id, condominio.getId())).thenReturn(Optional.empty());
 
         assertThrows(RecursoNaoEncontradoException.class, () -> service.buscar(id, auth(porteiro)));
-        assertThrows(RecursoNaoEncontradoException.class, () -> service.registrarRetirada(id, auth(porteiro)));
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.registrarRetirada(id, retirada(), auth(porteiro)));
     }
 
     // ---------------------------------------------------------------------
@@ -208,7 +213,7 @@ class EncomendaServiceTest {
     void moradorNaoRegistraNemDaBaixa() {
         assertThrows(SecurityException.class,
                 () -> service.registrarRecebimento(new RegistroEncomendaDTO(unidade101.getId(), "BR1", null), auth(morador)));
-        assertThrows(SecurityException.class, () -> service.registrarRetirada(UUID.randomUUID(), auth(morador)));
+        assertThrows(SecurityException.class, () -> service.registrarRetirada(UUID.randomUUID(), retirada(), auth(morador)));
         verifyNoInteractions(encomendaRepository);
     }
 
@@ -219,7 +224,7 @@ class EncomendaServiceTest {
             var admin = usuario(perfil, "Admin", null);
             assertThrows(SecurityException.class,
                     () -> service.registrarRecebimento(new RegistroEncomendaDTO(unidade101.getId(), "BR1", null), auth(admin)));
-            assertThrows(SecurityException.class, () -> service.registrarRetirada(UUID.randomUUID(), auth(admin)));
+            assertThrows(SecurityException.class, () -> service.registrarRetirada(UUID.randomUUID(), retirada(), auth(admin)));
         }
         verifyNoInteractions(encomendaRepository);
     }
@@ -232,7 +237,7 @@ class EncomendaServiceTest {
         when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
         when(encomendaRepository.save(aberta)).thenReturn(aberta);
 
-        var resposta = service.registrarRetirada(aberta.getId(), auth(porteiro));
+        var resposta = service.registrarRetirada(aberta.getId(), retirada(), auth(porteiro));
 
         assertEquals("RETIRADA", resposta.status());
         assertEquals("Seu José", resposta.porteiroRetiradaNome());
@@ -244,7 +249,83 @@ class EncomendaServiceTest {
         var retirada = encomenda(unidade101, "RETIRADA");
         when(encomendaRepository.findByIdAndCondominioId(retirada.getId(), condominio.getId())).thenReturn(Optional.of(retirada));
 
-        assertThrows(ConflitoException.class, () -> service.registrarRetirada(retirada.getId(), auth(porteiro)));
+        assertThrows(ConflitoException.class, () -> service.registrarRetirada(retirada.getId(), retirada(), auth(porteiro)));
+        verify(encomendaRepository, never()).save(any());
+    }
+
+    // ---------------------------------------------------------------------
+    // Sem destinatário identificado e dados do retirante
+    // ---------------------------------------------------------------------
+
+    @Test
+    void portariaRecebeSemUnidadeESemDestinatario() {
+        when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
+        when(encomendaRepository.save(any(Encomenda.class))).thenAnswer(i -> i.getArgument(0));
+
+        var resposta = service.registrarRecebimento(new RegistroEncomendaDTO(null, " BR999XX ", "Caixa marrom, nome Maria"), auth(porteiro));
+
+        assertTrue(resposta.semDestinatario());
+        assertNull(resposta.apartamentoId());
+        assertNull(resposta.moradorNome());
+        assertEquals("BR999XX", resposta.codigoIdentificacao());
+        verifyNoInteractions(apartamentoRepository);
+    }
+
+    @Test
+    void localizaPeloCodigoESoAsSemDestinatario() {
+        var semUnidade = encomenda(null, "AGUARDANDO RETIRADA");
+        semUnidade.setCodigoIdentificacao("BR 555 666");
+        var daUnidade = encomenda(unidade101, "AGUARDANDO RETIRADA");
+        when(encomendaRepository.findByCondominioIdOrderByDataHoraRecebimentoDesc(condominio.getId())).thenReturn(List.of(semUnidade, daUnidade));
+
+        assertEquals(List.of(semUnidade.getId()), service.listar(null, null, "br555", false, auth(porteiro)).stream().map(e -> e.id()).toList());
+        assertEquals(List.of(semUnidade.getId()), service.listar(null, null, null, true, auth(porteiro)).stream().map(e -> e.id()).toList());
+    }
+
+    @Test
+    void moradorNaoVeEncomendaSemDestinatario() {
+        var semUnidade = encomenda(null, "AGUARDANDO RETIRADA");
+        var morador = usuario("MORADOR", "Ana", unidade101);
+        when(encomendaRepository.findByIdAndCondominioId(semUnidade.getId(), condominio.getId())).thenReturn(Optional.of(semUnidade));
+
+        assertThrows(RecursoNaoEncontradoException.class, () -> service.buscar(semUnidade.getId(), auth(morador)));
+    }
+
+    @Test
+    void retiradaSemUnidadeConfereOCodigoERegistraOApartamentoInformado() {
+        var semUnidade = encomenda(null, "AGUARDANDO RETIRADA");
+        semUnidade.setCodigoIdentificacao("BR999XX");
+        when(encomendaRepository.findByIdAndCondominioId(semUnidade.getId(), condominio.getId())).thenReturn(Optional.of(semUnidade));
+        when(usuarioRepository.findById(porteiro.getId())).thenReturn(Optional.of(porteiro));
+        when(apartamentoRepository.findByIdAndCondominioId(unidade102.getId(), condominio.getId())).thenReturn(Optional.of(unidade102));
+        when(encomendaRepository.save(semUnidade)).thenReturn(semUnidade);
+
+        // Código que não confere: nada muda
+        assertThrows(IllegalArgumentException.class,
+                () -> service.registrarRetirada(semUnidade.getId(), new RetiradaEncomendaDTO("Maria", "BR000", unidade102.getId()), auth(porteiro)));
+        // Sem código ou sem apartamento informado também não
+        assertThrows(IllegalArgumentException.class,
+                () -> service.registrarRetirada(semUnidade.getId(), new RetiradaEncomendaDTO("Maria", " ", unidade102.getId()), auth(porteiro)));
+        assertThrows(IllegalArgumentException.class,
+                () -> service.registrarRetirada(semUnidade.getId(), new RetiradaEncomendaDTO("Maria", "BR999XX", null), auth(porteiro)));
+        assertEquals("AGUARDANDO RETIRADA", semUnidade.getStatus());
+
+        // Código conferido (sem diferenciar maiúsculas e espaços): retira e guarda quem e de qual apartamento
+        var resposta = service.registrarRetirada(semUnidade.getId(), new RetiradaEncomendaDTO(" Maria Lima ", "br 999 xx", unidade102.getId()), auth(porteiro));
+
+        assertEquals("RETIRADA", resposta.status());
+        assertEquals("Maria Lima", resposta.retiranteNome());
+        assertEquals("102", resposta.retiranteApartamentoNumero());
+        // O apartamento informado só fica registrado: a encomenda continua sem unidade
+        assertTrue(resposta.semDestinatario());
+    }
+
+    @Test
+    void todaRetiradaExigeONomeDeQuemRetira() {
+        var aberta = encomenda(unidade101, "AGUARDANDO RETIRADA");
+
+        assertThrows(IllegalArgumentException.class, () -> service.registrarRetirada(aberta.getId(), new RetiradaEncomendaDTO(" ", null, null), auth(porteiro)));
+        assertThrows(IllegalArgumentException.class, () -> service.registrarRetirada(aberta.getId(), null, auth(porteiro)));
         verify(encomendaRepository, never()).save(any());
     }
 }

@@ -34,9 +34,19 @@ public class Encomenda {
     @Column(name = "data_hora_retirada")
     private LocalDateTime dataHoraRetirada;
 
+    // Nula quando a encomenda chega sem destinatário identificado (CONDO-05.1)
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "apartamento_id", nullable = false)
+    @JoinColumn(name = "apartamento_id")
     private Apartamento apartamento;
+
+    // Quem retirou: nome em toda retirada; na encomenda sem unidade, também o apartamento que a pessoa informou
+    // (só registrado, para rastreio: a encomenda não passa a ser daquela unidade)
+    @Column(name = "retirante_nome", length = 255)
+    private String retiranteNome;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "retirante_apartamento_id")
+    private Apartamento retiranteApartamento;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "morador_id")
