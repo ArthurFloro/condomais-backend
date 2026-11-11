@@ -360,4 +360,19 @@ class ReservaServiceTest {
 
         assertThrows(ConflitoException.class, () -> service.aprovar(confirmada.getId(), auth(admin)));
     }
+
+    // ---------------------------------------------------------------------
+    // Síndico que também mora no condomínio
+    // ---------------------------------------------------------------------
+
+    @Test
+    void adminQueMoraNoCondominioSolicitaComoMorador() {
+        var sindico = usuario("ADMIN", unidade101, "PROPRIETARIO");
+        areaDisponivel();
+
+        var resposta = service.solicitar(pedido(), auth(sindico));
+
+        assertEquals("CONFIRMADA", resposta.status());
+        assertEquals("101", resposta.apartamentoNumero());
+    }
 }

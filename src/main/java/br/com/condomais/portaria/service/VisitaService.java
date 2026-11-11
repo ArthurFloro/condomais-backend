@@ -106,11 +106,12 @@ public class VisitaService {
     @Transactional
     public VisitaResponseDTO cadastrar(AutorizacaoVisitaDTO dados, UsuarioAutenticado auth) {
         var autor = usuarioDe(auth);
+        var comoMorador = isMorador(auth) || UsuarioService.moraNoCondominio(autor);
         Apartamento apartamento;
         Usuario responsavel;
         String status;
         String origem;
-        if (isMorador(auth)) {
+        if (comoMorador) {
             apartamento = autor.getApartamento();
             if (apartamento == null) {
                 throw new IllegalArgumentException("Seu cadastro não tem unidade vinculada para autorizar visitantes.");
@@ -140,7 +141,7 @@ public class VisitaService {
         }
 
         var visita = new Visita();
-        visita.setVisitante(visitanteDoCondominio(dados.cpf(), dados.nome(), dados.telefone(), apartamento.getCondominio(), !isMorador(auth)));
+        visita.setVisitante(visitanteDoCondominio(dados.cpf(), dados.nome(), dados.telefone(), apartamento.getCondominio(), !comoMorador));
         visita.setApartamento(apartamento);
         visita.setCondominio(apartamento.getCondominio());
         visita.setMorador(responsavel);
@@ -158,19 +159,22 @@ public class VisitaService {
     /** PENDENTE → AUTORIZADO, pela portaria ou por um morador da unidade. */
     @Transactional
     public VisitaResponseDTO autorizar(UUID id, UsuarioAutenticado auth) {
-        if (!isMorador(auth)) exigirPortaria(auth);
-        var visita = buscarVisivel(id, auth); // o morador só alcança visitas da própria unidade
+        var morador = comoMorador(auth);
+        if (morador == null) exigirPortaria(auth);
+        // Quem age como morador só alcança visitas da própria unidade
+        var visita = morador != null ? daUnidadeDe(morador, id, auth) : buscarDoCondominio(id, auth);
         exigirStatus(visita, Set.of(PENDENTE), "Só uma visita pendente pode ser autorizada.");
         visita.setStatus(AUTORIZADO);
-        if (isMorador(auth)) visita.setMorador(usuarioDe(auth)); // quem autorizou passa a ser o responsável
+        if (morador != null) visita.setMorador(morador); // quem autorizou passa a ser o responsável
         return resposta(visitaRepository.save(visita));
     }
 
     /** PENDENTE ou AUTORIZADO → RECUSADO (também serve para revogar uma autorização antes da entrada). */
     @Transactional
     public VisitaResponseDTO recusar(UUID id, UsuarioAutenticado auth) {
-        if (!isMorador(auth)) exigirPortaria(auth);
-        var visita = buscarVisivel(id, auth);
+        var morador = comoMorador(auth);
+        if (morador == null) exigirPortaria(auth);
+        var visita = morador != null ? daUnidadeDe(morador, id, auth) : buscarDoCondominio(id, auth);
         exigirStatus(visita, Set.of(PENDENTE, AUTORIZADO), "Só uma visita pendente ou autorizada pode ser recusada.");
         visita.setStatus(RECUSADO);
         return resposta(visitaRepository.save(visita));
@@ -256,15 +260,26 @@ public class VisitaService {
     }
 
     private Visita buscarVisivel(UUID id, UsuarioAutenticado auth) {
+        return isMorador(auth) ? daUnidadeDe(usuarioDe(auth), id, auth) : buscarDoCondominio(id, auth);
+    }
+
+    // Visita da unidade de quem mora nela (e visível para ele); outra unidade responde 404
+    private Visita daUnidadeDe(Usuario morador, UUID id, UsuarioAutenticado auth) {
         var visita = buscarDoCondominio(id, auth);
-        if (isMorador(auth)) {
-            var morador = usuarioDe(auth);
-            var unidade = morador.getApartamento();
-            if (unidade == null || !unidade.getId().equals(visita.getApartamento().getId()) || !visivelParaMorador(visita, morador)) {
-                throw new RecursoNaoEncontradoException("Visita não encontrada.");
-            }
+        var unidade = morador.getApartamento();
+        if (unidade == null || !unidade.getId().equals(visita.getApartamento().getId()) || !visivelParaMorador(visita, morador)) {
+            throw new RecursoNaoEncontradoException("Visita não encontrada.");
         }
         return visita;
+    }
+
+    // Quem age como morador: o morador, ou o administrador que também mora no condomínio (decide as visitas da
+    // própria unidade). Nulo para os demais: o administrador sem unidade só consulta e a portaria opera como portaria.
+    private Usuario comoMorador(UsuarioAutenticado auth) {
+        var perfil = UsuarioService.normalizarPerfil(auth.getPerfil());
+        if (!"MORADOR".equals(perfil) && !"ADMIN".equals(perfil)) return null;
+        var usuario = usuarioDe(auth);
+        return "MORADOR".equals(perfil) || UsuarioService.moraNoCondominio(usuario) ? usuario : null;
     }
 
     // Da unidade do morador: as cadastradas pela portaria sem responsável e as de quem ainda mora nela.

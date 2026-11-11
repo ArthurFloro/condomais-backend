@@ -102,7 +102,9 @@ public class ReservaService {
 
     @Transactional
     public ReservaResponseDTO solicitar(SolicitacaoReservaDTO dados, UsuarioAutenticado auth) {
-        if (!isMorador(auth)) {
+        // Morador, ou administrador que também mora no condomínio (reserva pela própria unidade)
+        var morador = usuarioDe(auth);
+        if (!UsuarioService.moraNoCondominio(morador) && !isMorador(auth)) {
             throw new SecurityException("Apenas moradores solicitam reservas.");
         }
         if (dados.areaId() == null || dados.dataReserva() == null || dados.horarioInicio() == null || dados.horarioFim() == null) {
@@ -139,7 +141,6 @@ public class ReservaService {
             throw new ConflitoException("Horário indisponível. Já existe uma reserva conflitante (RN-RES-002).");
         }
 
-        var morador = usuarioDe(auth);
         if (morador.getApartamento() == null) {
             throw new IllegalArgumentException("Seu cadastro ainda não tem unidade; procure a administração.");
         }
