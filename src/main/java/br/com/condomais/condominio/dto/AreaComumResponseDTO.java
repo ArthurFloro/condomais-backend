@@ -3,6 +3,7 @@ package br.com.condomais.condominio.dto;
 import br.com.condomais.condominio.model.AreaComum;
 
 import java.math.BigDecimal;
+import java.time.LocalTime;
 import java.util.UUID;
 
 public record AreaComumResponseDTO(
@@ -16,7 +17,9 @@ public record AreaComumResponseDTO(
         UUID condominioId,
         Integer capacidade,
         BigDecimal taxa,            // nula = gratuita
-        String instrucoesPagamento
+        String instrucoesPagamento,
+        LocalTime horarioAbertura,  // nulos = sem restrição
+        LocalTime horarioFechamento
 ) {
     public static AreaComumResponseDTO from(AreaComum area) {
         return new AreaComumResponseDTO(
@@ -30,7 +33,9 @@ public record AreaComumResponseDTO(
                 area.getCondominio().getId(),
                 area.getCapacidade(),
                 area.getTaxa(),
-                area.getInstrucoesPagamento()
+                area.getInstrucoesPagamento(),
+                area.getHorarioAbertura(),
+                area.getHorarioFechamento()
         );
     }
 }

@@ -269,7 +269,7 @@ class CondominioServiceTest {
         assertThrows(IllegalArgumentException.class,
                 () -> service.cadastrarApartamento(new ApartamentoDTO("101", "LIVRE", null, null, -1), admin));
         assertThrows(IllegalArgumentException.class,
-                () -> service.cadastrarAreaComum(new AreaComumDTO("Quadra", null, null, true, false, null, 0, null, null), admin));
+                () -> service.cadastrarAreaComum(new AreaComumDTO("Quadra", null, null, true, false, null, 0, null, null, null, null), admin));
         verify(apartamentoRepository, never()).save(any());
         verify(areaComumRepository, never()).save(any());
     }
@@ -283,7 +283,7 @@ class CondominioServiceTest {
         when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
         when(areaComumRepository.save(any(AreaComum.class))).thenAnswer(i -> i.getArgument(0));
 
-        var resposta = service.cadastrarAreaComum(new AreaComumDTO("  Salão de Festas ", " ", "Até 22h", null, true, null, 80, null, null), admin);
+        var resposta = service.cadastrarAreaComum(new AreaComumDTO("  Salão de Festas ", " ", "Até 22h", null, true, null, 80, null, null, null, null), admin);
 
         assertEquals("Salão de Festas", resposta.nome());
         assertNull(resposta.descricao());
@@ -298,8 +298,8 @@ class CondominioServiceTest {
     void nomeVazioOuRepetidoDeAreaComumEhRecusado() {
         when(areaComumRepository.existsByCondominioIdAndNomeIgnoreCase(condominio.getId(), "Piscina")).thenReturn(true);
 
-        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO(" ", null, null, true, false, null, null, null, null), admin));
-        assertThrows(ConflitoException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Piscina", null, null, true, false, null, null, null, null), admin));
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO(" ", null, null, true, false, null, null, null, null, null, null), admin));
+        assertThrows(ConflitoException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Piscina", null, null, true, false, null, null, null, null, null, null), admin));
         verify(areaComumRepository, never()).save(any());
     }
 
@@ -313,8 +313,8 @@ class CondominioServiceTest {
         when(areaComumRepository.existsByCondominioIdAndNomeIgnoreCaseAndIdNot(condominio.getId(), "Piscina", area.getId())).thenReturn(true);
         when(areaComumRepository.save(area)).thenReturn(area);
 
-        assertThrows(ConflitoException.class, () -> service.atualizarAreaComum(area.getId(), new AreaComumDTO("Piscina", null, null, true, false, null, null, null, null), admin));
-        var resposta = service.atualizarAreaComum(area.getId(), new AreaComumDTO("Quadra", null, null, true, true, null, null, null, null), admin);
+        assertThrows(ConflitoException.class, () -> service.atualizarAreaComum(area.getId(), new AreaComumDTO("Piscina", null, null, true, false, null, null, null, null, null, null), admin));
+        var resposta = service.atualizarAreaComum(area.getId(), new AreaComumDTO("Quadra", null, null, true, true, null, null, null, null, null, null), admin);
         assertEquals(true, resposta.reservavel());
         assertEquals(true, resposta.exigeAprovacao());
     }
@@ -328,22 +328,44 @@ class CondominioServiceTest {
         when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
         when(areaComumRepository.save(any(AreaComum.class))).thenAnswer(i -> i.getArgument(0));
 
-        var paga = service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, new java.math.BigDecimal("150.5"), " Pix: sindico@exemplo.com "), admin);
+        var paga = service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, new java.math.BigDecimal("150.5"), " Pix: sindico@exemplo.com ", null, null), admin);
         assertEquals(new java.math.BigDecimal("150.50"), paga.taxa());
         assertEquals("Pix: sindico@exemplo.com", paga.instrucoesPagamento());
 
-        var gratuita = service.cadastrarAreaComum(new AreaComumDTO("Quadra", null, null, true, false, null, null, java.math.BigDecimal.ZERO, "ignorado"), admin);
+        var gratuita = service.cadastrarAreaComum(new AreaComumDTO("Quadra", null, null, true, false, null, null, java.math.BigDecimal.ZERO, "ignorado", null, null), admin);
         assertNull(gratuita.taxa());
         assertNull(gratuita.instrucoesPagamento());
 
         // Área que não é reservável não cobra
-        assertNull(service.cadastrarAreaComum(new AreaComumDTO("Hall", null, null, false, false, null, null, java.math.BigDecimal.TEN, null), admin).taxa());
+        assertNull(service.cadastrarAreaComum(new AreaComumDTO("Hall", null, null, false, false, null, null, java.math.BigDecimal.TEN, null, null, null), admin).taxa());
     }
 
     @Test
     void taxaNegativaOuComMaisDeDuasCasasEhRecusada() {
-        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, new java.math.BigDecimal("-1"), null), admin));
-        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, new java.math.BigDecimal("10.555"), null), admin));
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, new java.math.BigDecimal("-1"), null, null, null), admin));
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, new java.math.BigDecimal("10.555"), null, null, null), admin));
+        verify(areaComumRepository, never()).save(any());
+    }
+
+    // ---------------------------------------------------------------------
+    // Horário de funcionamento
+    // ---------------------------------------------------------------------
+
+    @Test
+    void areaGuardaOFuncionamentoInclusivePassandoDaMeiaNoite() {
+        when(condominioRepository.findById(condominio.getId())).thenReturn(Optional.of(condominio));
+        when(areaComumRepository.save(any(AreaComum.class))).thenAnswer(i -> i.getArgument(0));
+
+        var salao = service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, null, null, java.time.LocalTime.of(8, 0), java.time.LocalTime.of(2, 0)), admin);
+
+        assertEquals(java.time.LocalTime.of(8, 0), salao.horarioAbertura());
+        assertEquals(java.time.LocalTime.of(2, 0), salao.horarioFechamento());
+    }
+
+    @Test
+    void funcionamentoPedeOsDoisHorariosDiferentes() {
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, null, null, java.time.LocalTime.of(8, 0), null), admin));
+        assertThrows(IllegalArgumentException.class, () -> service.cadastrarAreaComum(new AreaComumDTO("Salão", null, null, true, false, null, null, null, null, java.time.LocalTime.of(8, 0), java.time.LocalTime.of(8, 0)), admin));
         verify(areaComumRepository, never()).save(any());
     }
 }
